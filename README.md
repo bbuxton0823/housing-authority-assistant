@@ -4,7 +4,7 @@ A comprehensive multi-agent customer service system built with the OpenAI Agents
 
 ## 🖥️ Interface Overview
 
-![Housing Authority Assistant Interface](docs/screenshots/housing-authority-demo.gif)
+![Housing Authority Assistant Interface](docs/screenshots/housing-authority-demo.png)
 
 **Complete 5-Agent System**: Dual-panel interface showing agent orchestration (left) with available agents, guardrails, and conversation context alongside clean customer chat interface (right).
 
