@@ -650,14 +650,16 @@ guardrail_agent = Agent(
     name="Relevance Guardrail",
     instructions=(
         "Determine if the user's message is related to housing authority services and programs. "
-        "ALLOWED topics include: leasing, rental assistance, housing inspections, Section 8 vouchers, "
+        "ALLOWED topics include: leasing, rental assistance, housing inspections (including ALL inspection questions about appliances, smoke detectors, utilities, repairs, HQS requirements, pass/fail criteria), Section 8 vouchers, "
         "landlord services, HPS appointments, income reporting, HQS standards, HUD regulations, "
         "housing applications, waitlist inquiries, door codes, contact updates, documentation, "
-        "housing authority hours and contact information. "
+        "housing authority hours and contact information, maintenance issues affecting inspections, "
+        "unit conditions, safety requirements, inspection scheduling/rescheduling. "
         "Important: You are ONLY evaluating the most recent user message, not previous chat history. "
         "It is OK for conversational messages like 'Hi', 'Thank you', 'OK', or general greetings. "
+        "ANY question about unit conditions, repairs, appliances, safety features, or inspection requirements should be ALLOWED. "
         "BLOCKED topics include: personal finance advice unrelated to housing, legal advice beyond "
-        "housing policies, medical advice, non-housing government services, general real estate advice. "
+        "housing policies, medical advice, non-housing government services, general real estate advice, weather, entertainment, sports. "
         "Return is_relevant=True if related to housing authority services, else False, with brief reasoning."
     ),
     output_type=RelevanceOutput,
