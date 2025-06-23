@@ -15,7 +15,7 @@ GitHub supports these video formats in repositories:
 
 ### 1. Inspection Reschedule Demo (`inspection-reschedule-demo.mov`) ✅ **AVAILABLE**
 **Duration**: ~2 minutes  
-**File Size**: 11MB (stored locally - exceeds GitHub 10MB limit)
+**File Size**: 9.0MB
 **Content**:
 - Demonstrates the enhanced inspection reschedule system
 - Shows intelligent parsing of user input (T-code + date + reason)
@@ -29,7 +29,11 @@ GitHub supports these video formats in repositories:
 - Professional confirmation messaging
 - Contact information forwarding to HPS
 
-**Note**: Video is currently stored in `docs/videos/` but not committed to git due to file size. Consider compressing or using Git LFS for repository inclusion.
+**Video demonstrates the complete workflow**:
+1. User requests inspection reschedule
+2. System intelligently parses T-code and date from single input
+3. System prompts for reason and accepts "I'm sick"
+4. Professional confirmation with HPS worker notification
 
 ### 2. Complete System Demo (`housing-authority-demo.mp4`)
 **Duration**: 3-5 minutes
