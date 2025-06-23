@@ -2,17 +2,11 @@
 
 A comprehensive multi-agent customer service system built with the OpenAI Agents SDK, designed specifically for housing authority services including HQS inspections, Section 8 assistance, and Housing Program Specialist (HPS) support.
 
-![Housing Authority Dashboard](docs/screenshots/agent-view.png)
-*Agent View showing the complete 5-agent orchestration system*
+## 🖥️ Interface Overview
 
-![Customer Interface](docs/screenshots/customer-view.png)
-*Customer View with clean chat interface*
+![Housing Authority Assistant Interface](docs/screenshots/housing-authority-demo.gif)
 
-## 🎥 Demo Video
-
-[![Housing Authority Assistant Demo](docs/screenshots/video-thumbnail.png)](docs/videos/inspection-reschedule-demo.mov)
-
-**Featured Demo**: Inspection Reschedule System - Shows intelligent T-code + date parsing, 9AM-4PM time blocks, and HPS worker notification process.
+**Complete 5-Agent System**: Dual-panel interface showing agent orchestration (left) with available agents, guardrails, and conversation context alongside clean customer chat interface (right).
 
 ## ✨ Features
 
@@ -262,13 +256,16 @@ npm run test        # Run test suite (if configured)
 - Native language responses
 - Context persistence
 
-## 🎬 Video Documentation
+## 🎬 Demo Content
 
-### Demo Videos
-- [Complete System Demo](docs/videos/housing-authority-demo.mp4) - 5-minute overview
-- [Agent Handoffs](docs/videos/agent-handoffs.mp4) - Routing demonstration
-- [Multilingual Features](docs/videos/multilingual-demo.mp4) - Language support
-- [Setup Walkthrough](docs/videos/setup-guide.mp4) - Installation guide
+### Interface Overview
+- **System Interface GIF** (above) - Complete agent orchestration view
+- [Inspection Reschedule Demo](docs/videos/inspection-reschedule-demo.mov) - 2-minute focused demo showing T-code parsing and HPS workflow
+
+### Additional Videos (Planned)
+- Agent Handoffs - Routing demonstration 
+- Multilingual Features - Language support
+- Setup Walkthrough - Installation guide
 
 ### Adding Your Own Videos
 
