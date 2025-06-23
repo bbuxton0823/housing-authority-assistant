@@ -11,9 +11,27 @@ GitHub supports these video formats in repositories:
 
 **File size limit**: 10MB per file
 
-## Recommended Videos
+## Available Videos
 
-### 1. Complete System Demo (`housing-authority-demo.mp4`)
+### 1. Inspection Reschedule Demo (`inspection-reschedule-demo.mov`) ✅ **AVAILABLE**
+**Duration**: ~2 minutes  
+**File Size**: 11MB (stored locally - exceeds GitHub 10MB limit)
+**Content**:
+- Demonstrates the enhanced inspection reschedule system
+- Shows intelligent parsing of user input (T-code + date + reason)
+- Displays improved user experience with 9AM-4PM time blocks
+- Shows proper handling of reschedule reasons like "I'm sick"
+- Demonstrates HPS worker notification process
+
+**Key Features Shown**:
+- Complex input parsing: "T1234567 7/30/2025"
+- Reason collection: "I'm sick"
+- Professional confirmation messaging
+- Contact information forwarding to HPS
+
+**Note**: Video is currently stored in `docs/videos/` but not committed to git due to file size. Consider compressing or using Git LFS for repository inclusion.
+
+### 2. Complete System Demo (`housing-authority-demo.mp4`)
 **Duration**: 3-5 minutes
 **Content**:
 - Quick overview of the interface
@@ -32,7 +50,7 @@ GitHub supports these video formats in repositories:
 4:00-4:30 - Summary and key features
 ```
 
-### 2. Agent Handoffs Demo (`agent-handoffs.mp4`)
+### 3. Agent Handoffs Demo (`agent-handoffs.mp4`)
 **Duration**: 2-3 minutes
 **Content**:
 - Focus on the agent panel
@@ -40,7 +58,7 @@ GitHub supports these video formats in repositories:
 - Demonstrate each agent's specialization
 - Context passing between agents
 
-### 3. Multilingual Features (`multilingual-demo.mp4`)
+### 4. Multilingual Features (`multilingual-demo.mp4`)
 **Duration**: 1-2 minutes
 **Content**:
 - English to Spanish conversation
@@ -48,7 +66,7 @@ GitHub supports these video formats in repositories:
 - Context persistence
 - Cultural appropriateness
 
-### 4. Setup Walkthrough (`setup-guide.mp4`)
+### 5. Setup Walkthrough (`setup-guide.mp4`)
 **Duration**: 5-10 minutes
 **Content**:
 - Step-by-step installation
