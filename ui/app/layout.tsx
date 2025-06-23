@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Airlines Agent Orchestration",
-  description: "An interface for airline agent orchestration",
+  title: "Housing Authority Assistant",
+  description: "Housing Authority services and assistance interface",
   icons: {
     icon: "/openai_logo.svg",
   },

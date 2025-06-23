@@ -5,13 +5,18 @@ from typing import Optional, List, Dict, Any
 from uuid import uuid4
 import time
 import logging
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 from main import (
     triage_agent,
-    faq_agent,
-    seat_booking_agent,
-    flight_status_agent,
-    cancellation_agent,
+    general_info_agent,
+    inspection_agent,
+    landlord_services_agent,
+    hps_agent,
     create_initial_context,
 )
 
@@ -27,10 +32,14 @@ from agents import (
 )
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 # CORS configuration (adjust as needed for deployment)
 app.add_middleware(
@@ -109,10 +118,10 @@ def _get_agent_by_name(name: str):
     """Return the agent object by name."""
     agents = {
         triage_agent.name: triage_agent,
-        faq_agent.name: faq_agent,
-        seat_booking_agent.name: seat_booking_agent,
-        flight_status_agent.name: flight_status_agent,
-        cancellation_agent.name: cancellation_agent,
+        general_info_agent.name: general_info_agent,
+        inspection_agent.name: inspection_agent,
+        landlord_services_agent.name: landlord_services_agent,
+        hps_agent.name: hps_agent,
     }
     return agents.get(name, triage_agent)
 
@@ -141,10 +150,10 @@ def _build_agents_list() -> List[Dict[str, Any]]:
         }
     return [
         make_agent_dict(triage_agent),
-        make_agent_dict(faq_agent),
-        make_agent_dict(seat_booking_agent),
-        make_agent_dict(flight_status_agent),
-        make_agent_dict(cancellation_agent),
+        make_agent_dict(general_info_agent),
+        make_agent_dict(inspection_agent),
+        make_agent_dict(landlord_services_agent),
+        make_agent_dict(hps_agent),
     ]
 
 # =========================
@@ -205,7 +214,7 @@ async def chat_endpoint(req: ChatRequest):
                 passed=(g != failed),
                 timestamp=gr_timestamp,
             ))
-        refusal = "Sorry, I can only answer questions related to airline travel."
+        refusal = "Sorry, I can only answer questions related to housing authority services.\n\nFor other inquiries, please send your request directly to customerservice@smchousing.org and an HPS or housing authority specialist will be in contact with you."
         state["input_items"].append({"role": "assistant", "content": refusal})
         return ChatResponse(
             conversation_id=conversation_id,
@@ -302,7 +311,7 @@ async def chat_endpoint(req: ChatRequest):
                 )
             )
 
-    new_context = state["context"].dict()
+    new_context = state["context"].model_dump()
     changes = {k: new_context[k] for k in new_context if old_context.get(k) != new_context[k]}
     if changes:
         events.append(
@@ -341,7 +350,7 @@ async def chat_endpoint(req: ChatRequest):
         current_agent=current_agent.name,
         messages=messages,
         events=events,
-        context=state["context"].dict(),
+        context=state["context"].model_dump(),
         agents=_build_agents_list(),
         guardrails=final_guardrails,
     )

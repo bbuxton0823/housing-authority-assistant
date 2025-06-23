@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AgentPanel } from "@/components/agent-panel";
-import { Chat } from "@/components/chat";
+import { Chat } from "@/components/Chat";
 import type { Agent, AgentEvent, GuardrailCheck, Message } from "@/lib/types";
 import { callChatAPI } from "@/lib/api";
 
@@ -21,26 +21,30 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       const data = await callChatAPI("", conversationId ?? "");
-      setConversationId(data.conversation_id);
-      setCurrentAgent(data.current_agent);
-      setContext(data.context);
-      const initialEvents = (data.events || []).map((e: any) => ({
-        ...e,
-        timestamp: e.timestamp ?? Date.now(),
-      }));
-      setEvents(initialEvents);
-      setAgents(data.agents || []);
-      setGuardrails(data.guardrails || []);
-      if (Array.isArray(data.messages)) {
-        setMessages(
-          data.messages.map((m: any) => ({
-            id: Date.now().toString() + Math.random().toString(),
-            content: m.content,
-            role: "assistant",
-            agent: m.agent,
-            timestamp: new Date(),
-          }))
-        );
+      if (data) {
+        setConversationId(data.conversation_id);
+        setCurrentAgent(data.current_agent);
+        setContext(data.context);
+        const initialEvents = (data.events || []).map((e: any) => ({
+          ...e,
+          timestamp: e.timestamp ?? Date.now(),
+        }));
+        setEvents(initialEvents);
+        setAgents(data.agents || []);
+        setGuardrails(data.guardrails || []);
+        if (Array.isArray(data.messages)) {
+          setMessages(
+            data.messages.map((m: any) => ({
+              id: Date.now().toString() + Math.random().toString(),
+              content: m.content,
+              role: "assistant",
+              agent: m.agent,
+              timestamp: new Date(),
+            }))
+          );
+        }
+      } else {
+        console.error("Failed to initialize conversation - backend may be down or API key not configured");
       }
     })();
   }, []);
@@ -59,9 +63,22 @@ export default function Home() {
 
     const data = await callChatAPI(content, conversationId ?? "");
 
-    if (!conversationId) setConversationId(data.conversation_id);
-    setCurrentAgent(data.current_agent);
-    setContext(data.context);
+    if (data) {
+      if (!conversationId) setConversationId(data.conversation_id);
+      setCurrentAgent(data.current_agent);
+      setContext(data.context);
+    } else {
+      // Handle API error
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        content: "Sorry, I'm having trouble connecting to the server. Please check that the backend is running and your API key is configured.",
+        role: "assistant",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+      setIsLoading(false);
+      return;
+    }
     if (data.events) {
       const stamped = data.events.map((e: any) => ({
         ...e,
