@@ -262,14 +262,6 @@ npm run test        # Run test suite (if configured)
 - Native language responses
 - Context persistence
 
-## 🎬 Video Documentation
-
-### Demo Videos
-- [Complete System Demo](docs/videos/housing-authority-demo.mp4) - 5-minute overview
-- [Agent Handoffs](docs/videos/agent-handoffs.mp4) - Routing demonstration
-- [Multilingual Features](docs/videos/multilingual-demo.mp4) - Language support
-- [Setup Walkthrough](docs/videos/setup-guide.mp4) - Installation guide
-
 ### Adding Your Own Videos
 
 GitHub supports video files up to 10MB. For larger files:
