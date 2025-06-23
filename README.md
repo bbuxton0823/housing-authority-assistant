@@ -10,7 +10,9 @@ A comprehensive multi-agent customer service system built with the OpenAI Agents
 
 ## 🎥 Demo Video
 
-[![Housing Authority Assistant Demo](docs/screenshots/video-thumbnail.png)](docs/videos/housing-authority-demo.mp4)
+[![Housing Authority Assistant Demo](docs/screenshots/video-thumbnail.png)](docs/videos/inspection-reschedule-demo.mov)
+
+**Featured Demo**: Inspection Reschedule System - Shows intelligent T-code + date parsing, 9AM-4PM time blocks, and HPS worker notification process.
 
 ## ✨ Features
 
@@ -51,7 +53,7 @@ A comprehensive multi-agent customer service system built with the OpenAI Agents
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/housing-authority-assistant.git
+git clone https://github.com/bbuxton0823/housing-authority-assistant.git
 cd housing-authority-assistant
 ```
 

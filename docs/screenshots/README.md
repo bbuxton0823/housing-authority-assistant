@@ -2,9 +2,9 @@
 
 This directory contains screenshots of the Housing Authority Assistant interface.
 
-## Required Screenshots
+## Available Screenshots ✅
 
-To complete the documentation, please add the following screenshots:
+The following screenshots are now present in the repository:
 
 ### 1. Agent View (`agent-view.png`)
 - Full interface showing the agent orchestration panel
