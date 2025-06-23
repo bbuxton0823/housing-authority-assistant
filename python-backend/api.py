@@ -214,7 +214,11 @@ async def chat_endpoint(req: ChatRequest):
                 passed=(g != failed),
                 timestamp=gr_timestamp,
             ))
-        refusal = "Sorry, I can only answer questions related to housing authority services.\n\nFor other inquiries, please send a detailed email to customerservice@smchousing.org and an HPS or housing authority specialist will be in contact with you.\n\nHousing Authority Office Hours:\nMonday through Friday, 8:00 AM to 5:00 PM\nClosed weekends and holidays"
+        # Check if this is a data privacy guardrail failure (income information)
+        if _get_guardrail_name(failed) == "Data Privacy Guardrail":
+            refusal = "For your security and privacy, please do not share social security numbers, bank account numbers, credit card information, or other sensitive personal identification through this chat system.\n\nFor sharing sensitive documents or personal identification, please contact your Housing Choice Voucher Program (HPS) specialist or caseworker directly:\n\nEmail: customerservice@smchousing.org\n\nHousing Authority Office Hours:\nMonday through Friday, 8:00 AM to 5:00 PM\nClosed weekends and holidays"
+        else:
+            refusal = "Sorry, I can only answer questions related to housing authority services.\n\nFor other inquiries, please send a detailed email to customerservice@smchousing.org and an HPS or housing authority specialist will be in contact with you.\n\nHousing Authority Office Hours:\nMonday through Friday, 8:00 AM to 5:00 PM\nClosed weekends and holidays"
         state["input_items"].append({"role": "assistant", "content": refusal})
         return ChatResponse(
             conversation_id=conversation_id,

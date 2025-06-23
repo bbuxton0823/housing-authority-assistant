@@ -3,6 +3,8 @@ from __future__ import annotations as _annotations
 import random
 from pydantic import BaseModel
 import string
+import httpx
+import json
 
 from agents import (
     Agent,
@@ -219,6 +221,108 @@ async def housing_faq_lookup_tool(
     
     return defaults.get(language, defaults["english"])
 
+@function_tool(
+    name_override="research_income_limits",
+    description_override="Research current HUD income limits for specific areas and housing programs."
+)
+async def research_income_limits(
+    context: RunContextWrapper[HousingAuthorityContext], 
+    area_name: str = "",
+    family_size: str = "",
+    program_type: str = "Section 8"
+) -> str:
+    """Research current income limits for housing programs in specific areas."""
+    language = getattr(context.context, 'language', 'english')
+    
+    # HUD income limits are typically based on Area Median Income (AMI)
+    # This is a simplified lookup for demonstration - in production, this would query HUD APIs
+    
+    income_limit_data = {
+        "los_angeles": {
+            "1_person": {"very_low": "$50,500", "low": "$80,800", "moderate": "$96,960"},
+            "2_person": {"very_low": "$57,650", "low": "$92,400", "moderate": "$110,880"},
+            "3_person": {"very_low": "$64,850", "low": "$103,950", "moderate": "$124,740"},
+            "4_person": {"very_low": "$72,000", "low": "$115,500", "moderate": "$138,600"},
+            "5_person": {"very_low": "$77,800", "low": "$124,800", "moderate": "$149,760"},
+            "6_person": {"very_low": "$83,550", "low": "$134,050", "moderate": "$160,860"}
+        },
+        "san_francisco": {
+            "1_person": {"very_low": "$82,200", "low": "$131,450", "moderate": "$157,800"},
+            "2_person": {"very_low": "$93,950", "low": "$150,300", "moderate": "$180,350"},
+            "3_person": {"very_low": "$105,650", "low": "$169,100", "moderate": "$202,950"},
+            "4_person": {"very_low": "$117,400", "low": "$187,900", "moderate": "$225,500"},
+            "5_person": {"very_low": "$126,850", "low": "$203,000", "moderate": "$243,600"},
+            "6_person": {"very_low": "$136,250", "low": "$218,050", "moderate": "$261,650"}
+        },
+        "general": {
+            "1_person": {"very_low": "$35,000", "low": "$56,000", "moderate": "$67,200"},
+            "2_person": {"very_low": "$40,000", "low": "$64,000", "moderate": "$76,800"},
+            "3_person": {"very_low": "$45,000", "low": "$72,000", "moderate": "$86,400"},
+            "4_person": {"very_low": "$50,000", "low": "$80,000", "moderate": "$96,000"},
+            "5_person": {"very_low": "$54,000", "low": "$86,400", "moderate": "$103,680"},
+            "6_person": {"very_low": "$58,000", "low": "$92,800", "moderate": "$111,360"}
+        }
+    }
+    
+    # Normalize area name
+    area_key = area_name.lower().replace(" ", "_")
+    if area_key not in income_limit_data:
+        area_key = "general"
+    
+    # Normalize family size
+    size_key = f"{family_size}_person" if family_size.isdigit() else "4_person"
+    
+    limits = income_limit_data[area_key].get(size_key, income_limit_data[area_key]["4_person"])
+    
+    response_templates = {
+        "english": f"""Income Limits for {area_name or 'your area'} ({family_size or '4'} person household):
+
+• Very Low Income (50% AMI): {limits['very_low']}
+• Low Income (80% AMI): {limits['low']} 
+• Moderate Income (100% AMI): {limits['moderate']}
+
+Section 8 vouchers are typically available for Very Low Income households.
+
+For the most current income limits specific to your exact location, please:
+- Visit HUD.gov and search "Income Limits"
+- Contact your local Housing Authority
+- Email: customerservice@smchousing.org
+
+Note: Income limits are updated annually and vary by county/metropolitan area.""",
+
+        "spanish": f"""Límites de Ingresos para {area_name or 'su área'} (hogar de {family_size or '4'} personas):
+
+• Ingresos Muy Bajos (50% AMI): {limits['very_low']}
+• Ingresos Bajos (80% AMI): {limits['low']}
+• Ingresos Moderados (100% AMI): {limits['moderate']}
+
+Los vales de la Sección 8 están típicamente disponibles para hogares de Ingresos Muy Bajos.
+
+Para obtener los límites de ingresos más actuales específicos para su ubicación exacta:
+- Visite HUD.gov y busque "Income Limits"
+- Contacte su Autoridad de Vivienda local
+- Email: customerservice@smchousing.org
+
+Nota: Los límites de ingresos se actualizan anualmente y varían por condado/área metropolitana.""",
+
+        "mandarin": f"""收入限制 - {area_name or '您的地区'} ({family_size or '4'}人家庭):
+
+• 极低收入 (50% AMI): {limits['very_low']}
+• 低收入 (80% AMI): {limits['low']}
+• 中等收入 (100% AMI): {limits['moderate']}
+
+第8节住房券通常适用于极低收入家庭。
+
+要获取您确切位置的最新收入限制：
+- 访问 HUD.gov 搜索 "Income Limits"
+- 联系当地住房管理局
+- 邮箱: customerservice@smchousing.org
+
+注意：收入限制每年更新，因县/都市区而异。"""
+    }
+    
+    return response_templates.get(language, response_templates["english"])
+
 @function_tool
 async def update_tenant_info(
     context: RunContextWrapper[HousingAuthorityContext], t_code: str, phone_number: str
@@ -429,8 +533,7 @@ async def update_door_codes(
 async def schedule_inspection(
     context: RunContextWrapper[HousingAuthorityContext], 
     unit_address: str, 
-    preferred_date: str = None,
-    preferred_time: str = None
+    preferred_date: str = None
 ) -> str:
     """Schedule a new inspection."""
     import random
@@ -441,20 +544,19 @@ async def schedule_inspection(
     context.context.inspection_id = inspection_id
     context.context.unit_address = unit_address
     
-    # If no preferred date/time, suggest next available
+    # If no preferred date, suggest next available
     if not preferred_date:
         next_week = datetime.now() + timedelta(days=7)
         preferred_date = next_week.strftime("%Y-%m-%d")
-        preferred_time = "10:00 AM"
     
-    context.context.inspection_date = f"{preferred_date} at {preferred_time}"
+    context.context.inspection_date = f"{preferred_date} between 9:00 AM - 4:00 PM"
     context.context.inspector_name = "Inspector Johnson"  # Demo data
     
     language = getattr(context.context, 'language', 'english')
     responses = {
-        "english": f"Inspection scheduled for {unit_address} on {preferred_date} at {preferred_time}. Inspection ID: {inspection_id}. Inspector: Inspector Johnson will contact you 24 hours before the inspection.",
-        "spanish": f"Inspección programada para {unit_address} el {preferred_date} a las {preferred_time}. ID de inspección: {inspection_id}. Inspector: El Inspector Johnson se comunicará con usted 24 horas antes de la inspección.",
-        "mandarin": f"已为{unit_address}安排检查，时间为{preferred_date} {preferred_time}。检查ID：{inspection_id}。检查员：Johnson检查员将在检查前24小时联系您。"
+        "english": f"Inspection scheduled for {unit_address} on {preferred_date} between 9:00 AM - 4:00 PM. Inspection ID: {inspection_id}. Inspector Johnson will contact you 24 hours before the inspection.",
+        "spanish": f"Inspección programada para {unit_address} el {preferred_date} entre 9:00 AM - 4:00 PM. ID de inspección: {inspection_id}. El Inspector Johnson se comunicará con usted 24 horas antes de la inspección.",
+        "mandarin": f"已为{unit_address}安排检查，时间为{preferred_date}上午9:00 - 下午4:00。检查ID：{inspection_id}。Johnson检查员将在检查前24小时联系您。"
     }
     
     return responses.get(language, responses["english"])
@@ -466,7 +568,6 @@ async def schedule_inspection(
 async def reschedule_inspection(
     context: RunContextWrapper[HousingAuthorityContext],
     new_date: str,
-    new_time: str,
     reason: str = "tenant request"
 ) -> str:
     """Reschedule an existing inspection."""
@@ -478,17 +579,290 @@ async def reschedule_inspection(
         inspection_id = f"INS{random.randint(1000, 9999)}"
         context.context.inspection_id = inspection_id
     
-    # Update inspection date
-    context.context.inspection_date = f"{new_date} at {new_time}"
+    # Update inspection date with standard time block
+    context.context.inspection_date = f"{new_date} between 9:00 AM - 4:00 PM"
+    
+    # Get contact information for HPS notification
+    participant_name = getattr(context.context, 'participant_name', 'N/A')
+    phone_number = getattr(context.context, 'phone_number', 'N/A')
+    email = getattr(context.context, 'email', 'N/A')
+    t_code = getattr(context.context, 't_code', 'N/A')
+    unit_address = getattr(context.context, 'unit_address', 'N/A')
     
     language = getattr(context.context, 'language', 'english')
     responses = {
-        "english": f"Inspection {inspection_id} has been rescheduled to {new_date} at {new_time}. Reason: {reason}. You will receive a confirmation call 24 hours before the new appointment.",
-        "spanish": f"La inspección {inspection_id} ha sido reprogramada para el {new_date} a las {new_time}. Motivo: {reason}. Recibirá una llamada de confirmación 24 horas antes de la nueva cita.",
-        "mandarin": f"检查{inspection_id}已重新安排到{new_date} {new_time}。原因：{reason}。您将在新预约前24小时收到确认电话。"
+        "english": f"""Inspection {inspection_id} reschedule request received:
+
+📅 Requested Date: {new_date}
+🕐 Time Block: 9:00 AM - 4:00 PM
+📝 Reason: {reason}
+
+Your reschedule request and contact information will be forwarded to your Housing Program Specialist (HPS) for processing:
+• Name: {participant_name}
+• Phone: {phone_number}
+• Email: {email}
+• T-Code: {t_code}
+• Unit: {unit_address}
+
+A confirmation will be sent to you once your request has been approved.""",
+
+        "spanish": f"""Solicitud de reprogramación de inspección {inspection_id} recibida:
+
+📅 Fecha Solicitada: {new_date}
+🕐 Bloque de Tiempo: 9:00 AM - 4:00 PM
+📝 Motivo: {reason}
+
+Su solicitud de reprogramación e información de contacto será enviada a su Especialista del Programa de Vivienda (HPS) para procesamiento:
+• Nombre: {participant_name}
+• Teléfono: {phone_number}
+• Email: {email}
+• Código T: {t_code}
+• Unidad: {unit_address}
+
+Se le enviará una confirmación una vez que su solicitud haya sido aprobada.""",
+
+        "mandarin": f"""检查{inspection_id}重新安排请求已收到：
+
+📅 请求日期：{new_date}
+🕐 时间段：上午9:00 - 下午4:00
+📝 原因：{reason}
+
+您的重新安排请求和联系信息将转发给您的住房项目专员(HPS)处理：
+• 姓名：{participant_name}
+• 电话：{phone_number}
+• 邮箱：{email}
+• T代码：{t_code}
+• 住房单位：{unit_address}
+
+一旦您的请求获得批准，将向您发送确认信息。"""
     }
     
     return responses.get(language, responses["english"])
+
+@function_tool(
+    name_override="request_inspection_reschedule",
+    description_override="Start the process to reschedule an inspection by gathering required information."
+)
+async def request_inspection_reschedule(
+    context: RunContextWrapper[HousingAuthorityContext],
+    inspection_id: str = "",
+    new_date: str = "",
+    reason: str = ""
+) -> str:
+    """Guide user through inspection rescheduling process."""
+    language = getattr(context.context, 'language', 'english')
+    
+    # If user provided date, proceed with reschedule
+    if new_date:
+        return await reschedule_inspection(context, new_date, reason or "tenant request")
+    
+    # Otherwise, prompt for missing information
+    prompt_templates = {
+        "english": """I can help you reschedule your inspection. To process your request, I need:
+
+• Preferred date (e.g., 2024-03-15 or March 15, 2024)
+
+Please provide your preferred date for the rescheduled inspection. Inspections are conducted between 9:00 AM - 4:00 PM.
+
+Note: Your contact information and reschedule request will be forwarded to your Housing Program Specialist (HPS) for processing.""",
+
+        "spanish": """Puedo ayudarle a reprogramar su inspección. Para procesar su solicitud, necesito:
+
+• Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
+
+Por favor proporcione su fecha preferida para la inspección reprogramada. Las inspecciones se realizan entre las 9:00 AM - 4:00 PM.
+
+Nota: Su información de contacto y solicitud de reprogramación será enviada a su Especialista del Programa de Vivienda (HPS) para procesamiento.""",
+
+        "mandarin": """我可以帮助您重新安排检查。为了处理您的请求，我需要：
+
+• 首选日期（例如，2024-03-15或2024年3月15日）
+
+请提供您重新安排检查的首选日期。检查在上午9:00 - 下午4:00之间进行。
+
+注意：您的联系信息和重新安排请求将转发给您的住房项目专员(HPS)处理。"""
+    }
+    
+    return prompt_templates.get(language, prompt_templates["english"])
+
+@function_tool(
+    name_override="process_reschedule_reason",
+    description_override="Process reschedule reason provided by user and complete the reschedule if date was already provided."
+)
+async def process_reschedule_reason(
+    context: RunContextWrapper[HousingAuthorityContext],
+    reason: str,
+    new_date: str = ""
+) -> str:
+    """Process the reason for rescheduling and complete the request if date is available."""
+    # Store the reason in context
+    context.context.reschedule_reason = reason
+    
+    # If we have a date stored from previous interaction, complete the reschedule
+    stored_date = getattr(context.context, 'requested_reschedule_date', '')
+    if new_date or stored_date:
+        date_to_use = new_date or stored_date
+        return await reschedule_inspection(context, date_to_use, reason)
+    
+    # Otherwise, ask for the date
+    language = getattr(context.context, 'language', 'english')
+    prompt_templates = {
+        "english": f"""Thank you for providing the reason: {reason}
+
+Now I need your preferred date for the rescheduled inspection:
+
+• Preferred date (e.g., 2024-03-15 or March 15, 2024)
+
+Inspections are conducted between 9:00 AM - 4:00 PM.
+
+Your reschedule request will be forwarded to your Housing Program Specialist (HPS) for processing.""",
+
+        "spanish": f"""Gracias por proporcionar la razón: {reason}
+
+Ahora necesito su fecha preferida para la inspección reprogramada:
+
+• Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
+
+Las inspecciones se realizan entre las 9:00 AM - 4:00 PM.
+
+Su solicitud de reprogramación será enviada a su Especialista del Programa de Vivienda (HPS) para procesamiento.""",
+
+        "mandarin": f"""感谢您提供原因：{reason}
+
+现在我需要您重新安排检查的首选日期：
+
+• 首选日期（例如，2024-03-15或2024年3月15日）
+
+检查在上午9:00 - 下午4:00之间进行。
+
+您的重新安排请求将转发给您的住房项目专员(HPS)处理。"""
+    }
+    
+    return prompt_templates.get(language, prompt_templates["english"])
+
+@function_tool(
+    name_override="parse_reschedule_info",
+    description_override="Parse user input that contains T-code, date, and/or reason information for rescheduling."
+)
+async def parse_reschedule_info(
+    context: RunContextWrapper[HousingAuthorityContext],
+    user_input: str
+) -> str:
+    """Parse user input to extract T-code, date, and reason for inspection reschedule."""
+    import re
+    from datetime import datetime
+    
+    # Extract T-code
+    t_code_pattern = r'\b(T[-\s]?\d{4,8})\b'
+    t_code_match = re.search(t_code_pattern, user_input, re.IGNORECASE)
+    if t_code_match:
+        t_code = t_code_match.group(1).upper().replace(' ', '').replace('-', '')
+        if not t_code.startswith('T'):
+            t_code = 'T' + t_code
+        context.context.t_code = t_code
+        # Remove T-code from input for further parsing
+        user_input = re.sub(t_code_pattern, '', user_input, flags=re.IGNORECASE).strip()
+    
+    # Extract date patterns (MM/DD/YYYY, M/D/YYYY, etc.)
+    date_patterns = [
+        r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b',  # MM/DD/YYYY or M/D/YYYY
+        r'\b(\d{4})-(\d{1,2})-(\d{1,2})\b',  # YYYY-MM-DD
+        r'\b(\w+)\s+(\d{1,2}),?\s+(\d{4})\b',  # Month DD, YYYY
+        r'\b(\d{1,2})\s+(\w+)\s+(\d{4})\b',   # DD Month YYYY
+    ]
+    
+    extracted_date = None
+    remaining_text = user_input
+    
+    for pattern in date_patterns:
+        date_match = re.search(pattern, user_input, re.IGNORECASE)
+        if date_match:
+            try:
+                groups = date_match.groups()
+                if len(groups) == 3:
+                    # Try different date formats
+                    if groups[0].isdigit() and groups[1].isdigit() and groups[2].isdigit():
+                        # Numeric format - assume MM/DD/YYYY or YYYY-MM-DD
+                        if len(groups[0]) == 4:  # YYYY-MM-DD
+                            extracted_date = f"{groups[0]}-{groups[1].zfill(2)}-{groups[2].zfill(2)}"
+                        else:  # MM/DD/YYYY
+                            extracted_date = f"{groups[2]}-{groups[0].zfill(2)}-{groups[1].zfill(2)}"
+                    else:
+                        # Text format with month names
+                        try:
+                            if groups[0].isalpha():  # Month DD, YYYY
+                                date_obj = datetime.strptime(f"{groups[0]} {groups[1]} {groups[2]}", "%B %d %Y")
+                            else:  # DD Month YYYY
+                                date_obj = datetime.strptime(f"{groups[1]} {groups[0]} {groups[2]}", "%B %d %Y")
+                            extracted_date = date_obj.strftime("%Y-%m-%d")
+                        except ValueError:
+                            try:
+                                if groups[0].isalpha():  # Month DD, YYYY (abbreviated)
+                                    date_obj = datetime.strptime(f"{groups[0]} {groups[1]} {groups[2]}", "%b %d %Y")
+                                else:  # DD Month YYYY (abbreviated)
+                                    date_obj = datetime.strptime(f"{groups[1]} {groups[0]} {groups[2]}", "%b %d %Y")
+                                extracted_date = date_obj.strftime("%Y-%m-%d")
+                            except ValueError:
+                                continue
+                    
+                    # Remove date from remaining text
+                    remaining_text = re.sub(pattern, '', user_input, flags=re.IGNORECASE).strip()
+                    break
+            except (ValueError, IndexError):
+                continue
+    
+    # Remaining text is likely the reason
+    reason = remaining_text.strip() if remaining_text.strip() else "tenant request"
+    
+    # Store the reason in context
+    if reason and reason != "tenant request":
+        context.context.reschedule_reason = reason
+    
+    # If we have both T-code and date, proceed with reschedule
+    if extracted_date:
+        context.context.requested_reschedule_date = extracted_date
+        return await reschedule_inspection(context, extracted_date, reason)
+    
+    # If we have T-code but no date, ask for date
+    language = getattr(context.context, 'language', 'english')
+    t_code = getattr(context.context, 't_code', '')
+    
+    if t_code:
+        prompt_templates = {
+            "english": f"""T-code {t_code} recorded for your inspection reschedule.
+
+Now I need your preferred date for the rescheduled inspection:
+
+• Preferred date (e.g., 2024-03-15 or March 15, 2024)
+
+Inspections are conducted between 9:00 AM - 4:00 PM.
+
+Your reschedule request will be forwarded to your Housing Program Specialist (HPS) for processing.""",
+
+            "spanish": f"""Código T {t_code} registrado para la reprogramación de su inspección.
+
+Ahora necesito su fecha preferida para la inspección reprogramada:
+
+• Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
+
+Las inspecciones se realizan entre las 9:00 AM - 4:00 PM.
+
+Su solicitud de reprogramación será enviada a su Especialista del Programa de Vivienda (HPS) para procesamiento.""",
+
+            "mandarin": f"""T代码{t_code}已记录用于您的检查重新安排。
+
+现在我需要您重新安排检查的首选日期：
+
+• 首选日期（例如，2024-03-15或2024年3月15日）
+
+检查在上午9:00 - 下午4:00之间进行。
+
+您的重新安排请求将转发给您的住房项目专员(HPS)处理。"""
+        }
+        return prompt_templates.get(language, prompt_templates["english"])
+    
+    # Default response if no clear information was extracted
+    return await request_inspection_reschedule(context)
 
 @function_tool(
     name_override="cancel_inspection",
@@ -654,10 +1028,13 @@ guardrail_agent = Agent(
         "landlord services, HPS appointments, income reporting, HQS standards, HUD regulations, "
         "housing applications, waitlist inquiries, door codes, contact updates, documentation, "
         "housing authority hours and contact information, maintenance issues affecting inspections, "
-        "unit conditions, safety requirements, inspection scheduling/rescheduling. "
+        "unit conditions, safety requirements, inspection scheduling/rescheduling, "
+        "RESCHEDULE REASONS (sickness, work conflicts, emergencies, travel, family issues, availability changes), "
+        "appointment-related responses ('I'm sick', 'I have work', 'emergency', 'not available', 'need different date'). "
         "Important: You are ONLY evaluating the most recent user message, not previous chat history. "
         "It is OK for conversational messages like 'Hi', 'Thank you', 'OK', or general greetings. "
         "ANY question about unit conditions, repairs, appliances, safety features, or inspection requirements should be ALLOWED. "
+        "ALWAYS ALLOW responses that provide reasons for rescheduling appointments or inspections. "
         "BLOCKED topics include: personal finance advice unrelated to housing, legal advice beyond "
         "housing policies, medical advice, non-housing government services, general real estate advice, weather, entertainment, sports. "
         "Return is_relevant=True if related to housing authority services, else False, with brief reasoning."
@@ -713,10 +1090,13 @@ data_privacy_guardrail_agent = Agent(
     name="Data Privacy Guardrail",
     model="gpt-4o-mini",
     instructions=(
-        "Detect if the user's message contains sensitive personal information that should not be processed. "
-        "SENSITIVE DATA includes: full SSNs, bank account numbers, detailed financial records, "
-        "medical information, or highly personal details beyond basic housing program needs. "
-        "ALLOWED: T codes, basic contact info (name, phone, email), unit addresses, general housing questions. "
+        "Detect if the user's message contains sensitive personal information that should not be processed in chat. "
+        "SENSITIVE DATA includes: full SSNs (e.g., '123-45-6789'), bank account numbers, routing numbers, "
+        "credit card numbers, driver's license numbers, medical information, or highly personal details beyond basic housing program needs. "
+        "TRIGGER on: full 9-digit SSNs, bank account numbers, credit card numbers, routing numbers, detailed medical info. "
+        "ALLOWED: T codes, basic contact info (name, phone, email), unit addresses, general housing questions, "
+        "income information (salary amounts, hourly rates, annual income), income limit inquiries, "
+        "general mentions of 'income changed' or 'need income form'. "
         "Return contains_sensitive_data=True if sensitive data is detected, else False, with brief reasoning."
     ),
     output_type=DataPrivacyOutput,
@@ -813,7 +1193,7 @@ def inspection_instructions(
             f"Current participant: {participant_name} (T-code: {t_code})\n"
             "Your responsibilities:\n"
             "1. SCHEDULING: Help schedule new HQS inspections with preferred dates/times\n"
-            "2. RESCHEDULING: Modify existing inspection appointments as needed\n"
+            "2. RESCHEDULING: Modify existing inspection appointments as needed. Always notify users that their reschedule request and contact information will be sent to their HPS worker for processing\n"
             "3. CANCELLATION: Cancel inspections when requested\n"
             "4. STATUS CHECKS: Provide current inspection status and details\n"
             "5. REQUIREMENTS: Explain HQS inspection preparation requirements\n"
@@ -827,7 +1207,7 @@ def inspection_instructions(
             f"Participante actual: {participant_name} (código T: {t_code})\n"
             "Tus responsabilidades:\n"
             "1. PROGRAMACIÓN: Ayudar a programar nuevas inspecciones HQS con fechas/horas preferidas\n"
-            "2. REPROGRAMACIÓN: Modificar citas de inspección existentes según sea necesario\n"
+            "2. REPROGRAMACIÓN: Modificar citas de inspección existentes según sea necesario. Siempre notificar a los usuarios que su solicitud de reprogramación e información de contacto será enviada a su trabajador HPS para procesamiento\n"
             "3. CANCELACIÓN: Cancelar inspecciones cuando se solicite\n"
             "4. VERIFICACIÓN DE ESTADO: Proporcionar estado actual de inspección y detalles\n"
             "5. REQUISITOS: Explicar requisitos de preparación para inspección HQS\n"
@@ -841,7 +1221,7 @@ def inspection_instructions(
             f"当前参与者：{participant_name}（T代码：{t_code}）\n"
             "您的职责：\n"
             "1. 安排：帮助安排新的HQS检查，包括首选日期/时间\n"
-            "2. 重新安排：根据需要修改现有检查预约\n"
+            "2. 重新安排：根据需要修改现有检查预约。始终通知用户他们的重新安排请求和联系信息将发送给他们的HPS工作人员进行处理\n"
             "3. 取消：应要求取消检查\n"
             "4. 状态检查：提供当前检查状态和详细信息\n"
             "5. 要求：解释HQS检查准备要求\n"
@@ -860,6 +1240,9 @@ inspection_agent = Agent[HousingAuthorityContext](
     instructions=inspection_instructions,
     tools=[
         schedule_inspection, 
+        request_inspection_reschedule,
+        parse_reschedule_info,
+        process_reschedule_reason,
         reschedule_inspection, 
         cancel_inspection, 
         check_inspection_status, 
@@ -1109,12 +1492,13 @@ general_info_agent = Agent[HousingAuthorityContext](
     1. HOURS: Provide Housing Authority operating hours and holiday schedules
     2. CONTACT INFO: Give phone numbers, addresses, and department contacts
     3. GENERAL FAQ: Answer common questions about housing programs, policies, and procedures
-    4. WEBSITE LINKS: Provide relevant web resources and forms
-    5. DIRECTIONS: Help with office locations and accessibility information
+    4. INCOME LIMITS: Research HUD income limits for specific areas and family sizes
+    5. WEBSITE LINKS: Provide relevant web resources and forms
+    6. DIRECTIONS: Help with office locations and accessibility information
     
-    Use the housing FAQ lookup tool for specific questions. Always provide accurate contact information.
+    Use the housing FAQ lookup tool for specific questions and the income limit research tool for questions about eligibility thresholds. Always provide accurate contact information.
     If the request requires specialized help, transfer to the appropriate agent.""",
-    tools=[housing_faq_lookup_tool, get_language_instructions],
+    tools=[housing_faq_lookup_tool, research_income_limits, get_language_instructions],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
 )
 
