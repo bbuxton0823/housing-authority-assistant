@@ -8,12 +8,6 @@ A comprehensive multi-agent customer service system built with the OpenAI Agents
 ![Customer Interface](docs/screenshots/customer-view.png)
 *Customer View with clean chat interface*
 
-## 🎥 Demo Video
-
-[![Housing Authority Assistant Demo](docs/screenshots/video-thumbnail.png)](docs/videos/inspection-reschedule-demo.mov)
-
-**Featured Demo**: Inspection Reschedule System - Shows intelligent T-code + date parsing, 9AM-4PM time blocks, and HPS worker notification process.
-
 ## ✨ Features
 
 ### 🏠 **5-Agent Housing Authority Framework**
