@@ -765,10 +765,11 @@ async def parse_reschedule_info(
     
     # Extract date patterns (MM/DD/YYYY, M/D/YYYY, etc.)
     date_patterns = [
-        r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b',  # MM/DD/YYYY or M/D/YYYY
-        r'\b(\d{4})-(\d{1,2})-(\d{1,2})\b',  # YYYY-MM-DD
+        r'\bfor\s+(\w+)\s+(\d{1,2}),?\s+(\d{4})\b',  # "for July 30, 2025"
         r'\b(\w+)\s+(\d{1,2}),?\s+(\d{4})\b',  # Month DD, YYYY
         r'\b(\d{1,2})\s+(\w+)\s+(\d{4})\b',   # DD Month YYYY
+        r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b',  # MM/DD/YYYY or M/D/YYYY
+        r'\b(\d{4})-(\d{1,2})-(\d{1,2})\b',  # YYYY-MM-DD
     ]
     
     extracted_date = None
