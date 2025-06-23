@@ -36,7 +36,6 @@ A comprehensive multi-agent customer service system built with the OpenAI Agents
 - **HPS appointments** and documentation status
 - **Language preference** persistence
 
-### **Demo Flow**
 # Housing Authority Assistant Demo Flows
 
 ## Demo Flow #1: Multi-Agent HQS Inspection Journey
