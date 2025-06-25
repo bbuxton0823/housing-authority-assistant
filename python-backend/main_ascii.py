@@ -277,9 +277,9 @@ async def research_income_limits(
     response_templates = {
         "english": f"""Income Limits for {area_name or 'your area'} ({family_size or '4'} person household):
 
-• Very Low Income (50% AMI): {limits['very_low']}
-• Low Income (80% AMI): {limits['low']} 
-• Moderate Income (100% AMI): {limits['moderate']}
+- Very Low Income (50% AMI): {limits['very_low']}
+- Low Income (80% AMI): {limits['low']} 
+- Moderate Income (100% AMI): {limits['moderate']}
 
 Section 8 vouchers are typically available for Very Low Income households.
 
@@ -292,9 +292,9 @@ Note: Income limits are updated annually and vary by county/metropolitan area.""
 
         "spanish": f"""Límites de Ingresos para {area_name or 'su área'} (hogar de {family_size or '4'} personas):
 
-• Ingresos Muy Bajos (50% AMI): {limits['very_low']}
-• Ingresos Bajos (80% AMI): {limits['low']}
-• Ingresos Moderados (100% AMI): {limits['moderate']}
+- Ingresos Muy Bajos (50% AMI): {limits['very_low']}
+- Ingresos Bajos (80% AMI): {limits['low']}
+- Ingresos Moderados (100% AMI): {limits['moderate']}
 
 Los vales de la Sección 8 están típicamente disponibles para hogares de Ingresos Muy Bajos.
 
@@ -307,9 +307,9 @@ Nota: Los límites de ingresos se actualizan anualmente y varían por condado/á
 
         "mandarin": f"""收入限制 - {area_name or '您的地区'} ({family_size or '4'}人家庭):
 
-• 极低收入 (50% AMI): {limits['very_low']}
-• 低收入 (80% AMI): {limits['low']}
-• 中等收入 (100% AMI): {limits['moderate']}
+- 极低收入 (50% AMI): {limits['very_low']}
+- 低收入 (80% AMI): {limits['low']}
+- 中等收入 (100% AMI): {limits['moderate']}
 
 第8节住房券通常适用于极低收入家庭。
 
@@ -593,46 +593,46 @@ async def reschedule_inspection(
     responses = {
         "english": f"""Inspection {inspection_id} reschedule request received:
 
-📅 Requested Date: {new_date}
-🕐 Time Block: 9:00 AM - 4:00 PM
-📝 Reason: {reason}
+[Date] Requested Date: {new_date}
+[Time] Time Block: 9:00 AM - 4:00 PM
+[Note] Reason: {reason}
 
 Your reschedule request and contact information will be forwarded to your Housing Program Specialist (HPS) for processing:
-• Name: {participant_name}
-• Phone: {phone_number}
-• Email: {email}
-• T-Code: {t_code}
-• Unit: {unit_address}
+- Name: {participant_name}
+- [Phone] Phone: {phone_number}
+- [Email] Email: {email}
+- T-Code: {t_code}
+- [Housing] Unit: {unit_address}
 
 A confirmation will be sent to you once your request has been approved.""",
 
         "spanish": f"""Solicitud de reprogramación de inspección {inspection_id} recibida:
 
-📅 Fecha Solicitada: {new_date}
-🕐 Bloque de Tiempo: 9:00 AM - 4:00 PM
-📝 Motivo: {reason}
+[Date] Fecha Solicitada: {new_date}
+[Time] Bloque de Tiempo: 9:00 AM - 4:00 PM
+[Note] Motivo: {reason}
 
 Su solicitud de reprogramación e información de contacto será enviada a su Especialista del Programa de Vivienda (HPS) para procesamiento:
-• Nombre: {participant_name}
-• Teléfono: {phone_number}
-• Email: {email}
-• Código T: {t_code}
-• Unidad: {unit_address}
+- Nombre: {participant_name}
+- [Phone] Teléfono: {phone_number}
+- [Email] Email: {email}
+- Código T: {t_code}
+- [Housing] Unidad: {unit_address}
 
 Se le enviará una confirmación una vez que su solicitud haya sido aprobada.""",
 
         "mandarin": f"""检查{inspection_id}重新安排请求已收到：
 
-📅 请求日期：{new_date}
-🕐 时间段：上午9:00 - 下午4:00
-📝 原因：{reason}
+[Date] 请求日期：{new_date}
+[Time] 时间段：上午9:00 - 下午4:00
+[Note] 原因：{reason}
 
 您的重新安排请求和联系信息将转发给您的住房项目专员(HPS)处理：
-• 姓名：{participant_name}
-• 电话：{phone_number}
-• 邮箱：{email}
-• T代码：{t_code}
-• 住房单位：{unit_address}
+- 姓名：{participant_name}
+- [Phone] 电话：{phone_number}
+- [Email] 邮箱：{email}
+- T代码：{t_code}
+- [Housing] 住房单位：{unit_address}
 
 一旦您的请求获得批准，将向您发送确认信息。"""
     }
@@ -660,7 +660,7 @@ async def request_inspection_reschedule(
     prompt_templates = {
         "english": """I can help you reschedule your inspection. To process your request, I need:
 
-• Preferred date (e.g., 2024-03-15 or March 15, 2024)
+- Preferred date (e.g., 2024-03-15 or March 15, 2024)
 
 Please provide your preferred date for the rescheduled inspection. Inspections are conducted between 9:00 AM - 4:00 PM.
 
@@ -668,7 +668,7 @@ Note: Your contact information and reschedule request will be forwarded to your 
 
         "spanish": """Puedo ayudarle a reprogramar su inspección. Para procesar su solicitud, necesito:
 
-• Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
+- Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
 
 Por favor proporcione su fecha preferida para la inspección reprogramada. Las inspecciones se realizan entre las 9:00 AM - 4:00 PM.
 
@@ -676,7 +676,7 @@ Nota: Su información de contacto y solicitud de reprogramación será enviada a
 
         "mandarin": """我可以帮助您重新安排检查。为了处理您的请求，我需要：
 
-• 首选日期（例如，2024-03-15或2024年3月15日）
+- 首选日期（例如，2024-03-15或2024年3月15日）
 
 请提供您重新安排检查的首选日期。检查在上午9:00 - 下午4:00之间进行。
 
@@ -711,7 +711,7 @@ async def process_reschedule_reason(
 
 Now I need your preferred date for the rescheduled inspection:
 
-• Preferred date (e.g., 2024-03-15 or March 15, 2024)
+- Preferred date (e.g., 2024-03-15 or March 15, 2024)
 
 Inspections are conducted between 9:00 AM - 4:00 PM.
 
@@ -721,7 +721,7 @@ Your reschedule request will be forwarded to your Housing Program Specialist (HP
 
 Ahora necesito su fecha preferida para la inspección reprogramada:
 
-• Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
+- Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
 
 Las inspecciones se realizan entre las 9:00 AM - 4:00 PM.
 
@@ -731,7 +731,7 @@ Su solicitud de reprogramación será enviada a su Especialista del Programa de 
 
 现在我需要您重新安排检查的首选日期：
 
-• 首选日期（例如，2024-03-15或2024年3月15日）
+- 首选日期（例如，2024-03-15或2024年3月15日）
 
 检查在上午9:00 - 下午4:00之间进行。
 
@@ -834,7 +834,7 @@ async def parse_reschedule_info(
 
 Now I need your preferred date for the rescheduled inspection:
 
-• Preferred date (e.g., 2024-03-15 or March 15, 2024)
+- Preferred date (e.g., 2024-03-15 or March 15, 2024)
 
 Inspections are conducted between 9:00 AM - 4:00 PM.
 
@@ -844,7 +844,7 @@ Your reschedule request will be forwarded to your Housing Program Specialist (HP
 
 Ahora necesito su fecha preferida para la inspección reprogramada:
 
-• Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
+- Fecha preferida (ej., 2024-03-15 o 15 de marzo, 2024)
 
 Las inspecciones se realizan entre las 9:00 AM - 4:00 PM.
 
@@ -854,7 +854,7 @@ Su solicitud de reprogramación será enviada a su Especialista del Programa de 
 
 现在我需要您重新安排检查的首选日期：
 
-• 首选日期（例如，2024-03-15或2024年3月15日）
+- 首选日期（例如，2024-03-15或2024年3月15日）
 
 检查在上午9:00 - 下午4:00之间进行。
 
@@ -932,38 +932,38 @@ async def get_inspection_requirements(
     
     requirements = {
         "english": """HQS Inspection Requirements:
-• All utilities must be on (water, gas, electric)
-• Unit must be clean and accessible
-• Smoke detectors must be present and working
-• All rooms, closets, cabinets must be accessible
-• Remove all personal items from areas to be inspected
-• Repair any obvious safety hazards
-• Ensure all windows and doors open and close properly
-• Have unit keys available for inspector
+- All utilities must be on (water, gas, electric)
+- Unit must be clean and accessible
+- Smoke detectors must be present and working
+- All rooms, closets, cabinets must be accessible
+- Remove all personal items from areas to be inspected
+- Repair any obvious safety hazards
+- Ensure all windows and doors open and close properly
+- Have unit keys available for inspector
 
 The inspection typically takes 30-60 minutes. You or an adult representative must be present.""",
         
         "spanish": """Requisitos de Inspección HQS:
-• Todos los servicios públicos deben estar encendidos (agua, gas, electricidad)
-• La unidad debe estar limpia y accesible
-• Los detectores de humo deben estar presentes y funcionando
-• Todas las habitaciones, armarios, gabinetes deben ser accesibles
-• Retire todos los artículos personales de las áreas a inspeccionar
-• Repare cualquier peligro de seguridad obvio
-• Asegúrese de que todas las ventanas y puertas abran y cierren correctamente
-• Tenga las llaves de la unidad disponibles para el inspector
+- Todos los servicios públicos deben estar encendidos (agua, gas, electricidad)
+- La unidad debe estar limpia y accesible
+- Los detectores de humo deben estar presentes y funcionando
+- Todas las habitaciones, armarios, gabinetes deben ser accesibles
+- Retire todos los artículos personales de las áreas a inspeccionar
+- Repare cualquier peligro de seguridad obvio
+- Asegúrese de que todas las ventanas y puertas abran y cierren correctamente
+- Tenga las llaves de la unidad disponibles para el inspector
 
 La inspección típicamente toma 30-60 minutos. Usted o un representante adulto debe estar presente.""",
         
         "mandarin": """HQS检查要求：
-• 所有公用设施必须开启（水、煤气、电）
-• 住房单位必须干净且可进入
-• 必须有烟雾探测器且工作正常
-• 所有房间、壁橱、柜子必须可进入
-• 从待检查区域移除所有个人物品
-• 修复任何明显的安全隐患
-• 确保所有门窗能正常开关
-• 为检查员准备好住房钥匙
+- 所有公用设施必须开启（水、煤气、电）
+- 住房单位必须干净且可进入
+- 必须有烟雾探测器且工作正常
+- 所有房间、壁橱、柜子必须可进入
+- 从待检查区域移除所有个人物品
+- 修复任何明显的安全隐患
+- 确保所有门窗能正常开关
+- 为检查员准备好住房钥匙
 
 检查通常需要30-60分钟。您或成年代表必须在场。"""
     }
@@ -1490,11 +1490,11 @@ general_info_agent = Agent[HousingAuthorityContext](
     instructions=f"""{RECOMMENDED_PROMPT_PREFIX}
     You are a General Information Agent for the Housing Authority. You provide hours, contact information, and answer general questions.
     Your responsibilities:
-    1. HOURS: Provide Housing Authority operating hours and holiday schedules
+    1. [Hours] HOURS: Provide Housing Authority operating hours and holiday schedules
     2. CONTACT INFO: Give phone numbers, addresses, and department contacts
     3. GENERAL FAQ: Answer common questions about housing programs, policies, and procedures
     4. INCOME LIMITS: Research HUD income limits for specific areas and family sizes
-    5. WEBSITE LINKS: Provide relevant web resources and forms
+    5. [Website] WEBSITE LINKS: Provide relevant web resources and forms
     6. DIRECTIONS: Help with office locations and accessibility information
     7. TENANT-LANDLORD DISPUTES: For tenant-landlord issues that fall outside of HUD regulations (such as security deposits, repairs not related to HQS inspections, maintenance disputes, evictions, discrimination, or habitability issues), refer clients to Project Sentinel. Explain that Project Sentinel provides FREE mediation and counseling services specifically for tenant-landlord disputes in San Mateo County, and they offer neutral mediation that can help resolve disputes without going to court.
     

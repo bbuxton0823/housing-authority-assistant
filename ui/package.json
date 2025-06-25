@@ -11,8 +11,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@elevenlabs/react": "^0.1.7",
     "@radix-ui/react-scroll-area": "^1.2.9",
     "@radix-ui/react-slot": "^1.1.2",
+    "@types/dom-speech-recognition": "^0.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.484.0",
@@ -23,6 +25,7 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^15.6.1",
+    "recordrtc": "^5.6.2",
     "tailwind-merge": "^3.0.2",
     "tailwindcss-animate": "^1.0.7",
     "wavtools": "^0.1.5"
@@ -31,6 +34,7 @@
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/recordrtc": "^5.6.14",
     "concurrently": "^9.1.2",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",

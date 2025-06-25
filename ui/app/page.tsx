@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { AgentPanel } from "@/components/agent-panel";
 import { Chat } from "@/components/Chat";
+import { HybridVoiceAgent } from "@/components/voice/HybridVoiceAgent";
 import type { Agent, AgentEvent, GuardrailCheck, Message } from "@/lib/types";
-import { callChatAPI } from "@/lib/api";
+import { callChatAPI, uploadAudio } from "@/lib/api";
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -50,7 +51,10 @@ export default function Home() {
   }, []);
 
   // Send a user message
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (
+    content: string, 
+    options?: { enableVoice?: boolean; enableNavigation?: boolean }
+  ) => {
     const userMsg: Message = {
       id: Date.now().toString(),
       content,
@@ -61,7 +65,7 @@ export default function Home() {
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
 
-    const data = await callChatAPI(content, conversationId ?? "");
+    const data = await callChatAPI(content, conversationId ?? "", options);
 
     if (data) {
       if (!conversationId) setConversationId(data.conversation_id);
@@ -97,6 +101,8 @@ export default function Home() {
         role: "assistant",
         agent: m.agent,
         timestamp: new Date(),
+        audioData: m.audio_base64 || null,
+        hasVoice: !!m.audio_base64,
       }));
       setMessages((prev) => [...prev, ...responses]);
     }
@@ -104,8 +110,185 @@ export default function Home() {
     setIsLoading(false);
   };
 
+  // Handle voice message (audio blob)
+  const handleVoiceUpload = async (audioBlob: Blob) => {
+    try {
+      // Convert audio to text first
+      const speechResponse = await uploadAudio(audioBlob);
+      
+      if (speechResponse && speechResponse.transcript) {
+        // Send the transcript as a regular message with voice enabled
+        await handleSendMessage(speechResponse.transcript, { 
+          enableVoice: true, 
+          enableNavigation: true 
+        });
+      } else {
+        console.error('Failed to transcribe audio');
+        // Could show error message to user here
+      }
+    } catch (error) {
+      console.error('Error processing voice message:', error);
+      // Could show error message to user here
+    }
+  };
+
+  // Handle voice-triggered navigation
+  const handleVoiceNavigation = async (messageText: string) => {
+    if (!messageText) return;
+
+    // Check for navigation keywords
+    const navigationKeywords = [
+      'navigate', 'go to', 'show me', 'take me to', 'open', 'visit',
+      'inspection', 'application', 'housing', 'landlord', 'requirements'
+    ];
+
+    const hasNavigationIntent = navigationKeywords.some(keyword => 
+      messageText.toLowerCase().includes(keyword)
+    );
+
+    if (hasNavigationIntent) {
+      try {
+        const response = await fetch('/elevenlabs/navigation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: messageText,
+            user_id: conversationId || 'voice_user',
+            action: 'navigate'
+          }),
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+          console.log('Navigation completed:', result);
+          // Show success notification in chat
+          const navMessage: Message = {
+            id: Date.now().toString(),
+            content: `✅ Navigation completed: ${result.message}`,
+            role: "assistant",
+            agent: "Navigation Assistant",
+            timestamp: new Date(),
+          };
+          setMessages((prev) => [...prev, navMessage]);
+        } else {
+          console.error('Navigation failed:', result.message);
+        }
+      } catch (error) {
+        console.error('Error triggering navigation:', error);
+      }
+    }
+  };
+
+  // Start voice session with navigation
+  const handleVoiceSessionStart = async () => {
+    try {
+      const response = await fetch('/elevenlabs/start-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: conversationId || 'voice_user'
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('Voice session started:', result);
+        // Show success notification in chat
+        const navMessage: Message = {
+          id: Date.now().toString(),
+          content: `🌐 Voice session started! I've opened the Housing Authority website (${result.url}) so I can help you navigate and find information.`,
+          role: "assistant",
+          agent: "Navigation Assistant",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, navMessage]);
+      } else {
+        console.error('Failed to start voice session:', result.message);
+      }
+    } catch (error) {
+      console.error('Error starting voice session:', error);
+    }
+  };
+
+  // Handle hybrid voice agent events
+  const handleVoiceMessage = async (response: any) => {
+    console.log('Voice agent response:', response);
+    
+    // Add agent response to chat messages
+    if (response.message) {
+      const agentMessage: Message = {
+        id: Date.now().toString(),
+        content: response.message,
+        role: "assistant",
+        agent: response.current_agent,
+        timestamp: new Date(),
+        audioData: response.audio_base64,
+        hasVoice: !!response.audio_base64,
+      };
+      setMessages((prev) => [...prev, agentMessage]);
+    }
+
+    // Update current agent if handoff occurred
+    if (response.handoff_occurred && response.current_agent !== currentAgent) {
+      setCurrentAgent(response.current_agent);
+      
+      // Add handoff notification
+      const handoffMessage: Message = {
+        id: Date.now().toString() + '_handoff',
+        content: `🔄 Conversation handed off to ${response.current_agent}`,
+        role: "assistant",
+        agent: "System",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, handoffMessage]);
+    }
+
+    // Update conversation state
+    if (response.conversation_id && response.conversation_id !== conversationId) {
+      setConversationId(response.conversation_id);
+    }
+
+    // Update events and agents
+    if (response.events) {
+      const stamped = response.events.map((e: any) => ({
+        ...e,
+        timestamp: e.timestamp ?? Date.now(),
+      }));
+      setEvents((prev) => [...prev, ...stamped]);
+    }
+
+    if (response.agents) {
+      setAgents(response.agents);
+    }
+  };
+
+  const handleAgentChange = (newAgent: string) => {
+    console.log('Agent changed to:', newAgent);
+    setCurrentAgent(newAgent);
+  };
+
+  const handleVoiceError = (error: any) => {
+    console.error('Voice agent error:', error);
+    
+    // Show error message in chat
+    const errorMessage: Message = {
+      id: Date.now().toString(),
+      content: `❌ Voice Error: ${error.message || 'Something went wrong with the voice system'}`,
+      role: "assistant",
+      agent: "System",
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, errorMessage]);
+  };
+
   return (
-    <main className="flex h-screen gap-2 bg-gray-100 p-2">
+    <main className="flex h-screen gap-2 bg-gray-100 p-2 relative">
       <AgentPanel
         agents={agents}
         currentAgent={currentAgent}
@@ -116,7 +299,20 @@ export default function Home() {
       <Chat
         messages={messages}
         onSendMessage={handleSendMessage}
+        onVoiceMessage={handleVoiceUpload}
         isLoading={isLoading}
+        voiceEnabled={true}
+      />
+      
+      {/* Hybrid Voice Agent (ElevenLabs + OpenAI) */}
+      <HybridVoiceAgent
+        position="bottom-right"
+        theme="light"
+        conversationId={conversationId}
+        onMessage={handleVoiceMessage}
+        onAgentChange={handleAgentChange}
+        onError={handleVoiceError}
+        className="z-50"
       />
     </main>
   );

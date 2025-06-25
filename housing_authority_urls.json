@@ -1,0 +1,63 @@
+{
+  "housing_authority_urls": {
+    "base_url": "https://www.smcgov.org/housing",
+    "pages": {
+      "inspection_requirements": {
+        "url": "https://www.smcgov.org/housing/housing-choice-voucher-program",
+        "description": "Housing Choice Voucher Program and HQS inspection information",
+        "common_selectors": ["h2", "h3", ".requirements", ".inspection", "main", ".content"]
+      },
+      "inspection_scheduling": {
+        "url": "https://www.smcgov.org/housing/housing-choice-voucher-program", 
+        "description": "Housing Choice Voucher Program - inspection scheduling",
+        "common_selectors": ["form", "input", ".schedule", ".contact", "main"]
+      },
+      "application": {
+        "url": "https://www.smcgov.org/housing/housing-choice-voucher-program",
+        "description": "Housing Choice Voucher Program application information",
+        "common_selectors": ["form", ".application", ".apply", "input", "select", "main"]
+      },
+      "landlord_services": {
+        "url": "https://www.smcgov.org/housing/landlords",
+        "description": "Information and resources for landlords",
+        "common_selectors": [".payment", ".landlord", "form", "main", ".content"]
+      },
+      "contact": {
+        "url": "https://www.smcgov.org/housing/contact-us",
+        "description": "Contact information and office hours",
+        "common_selectors": [".contact", ".hours", ".phone", ".address", "main"]
+      },
+      "home": {
+        "url": "https://www.smcgov.org/housing",
+        "description": "San Mateo County Housing Authority homepage",
+        "common_selectors": ["nav", ".navigation", ".menu", ".quick-links", "main"]
+      },
+      "rental_assistance": {
+        "url": "https://www.smcgov.org/housing/rental-assistance",
+        "description": "Emergency rental assistance programs",
+        "common_selectors": ["main", ".content", ".assistance", ".rental"]
+      },
+      "affordable_housing": {
+        "url": "https://www.smcgov.org/housing/affordable-housing",
+        "description": "Affordable housing opportunities and waitlists",
+        "common_selectors": ["main", ".content", ".affordable", ".housing"]
+      },
+      "project_sentinel": {
+        "url": "https://www.smcgov.org/housing/project-sentinel-landlordtenant-questions-county-san-mateo",
+        "description": "Project Sentinel - FREE mediation and counseling for tenant-landlord disputes",
+        "common_selectors": ["main", ".content", ".mediation", ".counseling", ".services"]
+      }
+    }
+  },
+  "update_instructions": {
+    "note": "UPDATE THE URLS BELOW WITH YOUR ACTUAL HOUSING AUTHORITY WEBSITE LINKS",
+    "examples": {
+      "inspection_requirements": "https://yourhousing.gov/inspections/requirements",
+      "inspection_scheduling": "https://yourhousing.gov/inspections/schedule", 
+      "application": "https://yourhousing.gov/applications/apply",
+      "landlord_payments": "https://yourhousing.gov/landlords/payments",
+      "contact": "https://yourhousing.gov/contact-us"
+    },
+    "quick_update_method": "Replace the URLs in this file, then run: python update_navigation_urls.py"
+  }
+}

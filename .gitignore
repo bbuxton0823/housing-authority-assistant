@@ -133,3 +133,26 @@ node_modules/
 # ui stuff
 
 ui/.next/
+# Sensitive files
+.env
+.env.backup
+.env.local
+.env.*.local
+
+# Build artifacts
+.next/
+dist/
+build/
+
+# Recordings and logs
+recordings/
+*.wav
+*.mp3
+*.mp4
+*.webm
+server.log
+
+# Temporary files
+*.tmp
+temp/
+

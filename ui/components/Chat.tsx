@@ -4,20 +4,46 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import type { Message } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
 import { SeatMap } from "./seat-map";
+import { VoiceMicrophone } from "./voice/VoiceMicrophone";
+import { VoicePlayback } from "./voice/VoicePlayback";
+import { VoiceSettings } from "./voice/VoiceSettings";
+import { useVoice } from "@/lib/hooks/useVoice";
+import { Settings, Volume2, VolumeX } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { uploadAudio } from "@/lib/api";
 
 interface ChatProps {
   messages: Message[];
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string, options?: { enableVoice?: boolean; enableNavigation?: boolean }) => void;
+  onVoiceMessage?: (audioBlob: Blob) => void;
   /** Whether waiting for assistant response */
   isLoading?: boolean;
+  /** Whether voice features are enabled */
+  voiceEnabled?: boolean;
 }
 
-export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
+export function Chat({ 
+  messages, 
+  onSendMessage, 
+  onVoiceMessage,
+  isLoading,
+  voiceEnabled = true,
+}: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputText, setInputText] = useState("");
   const [isComposing, setIsComposing] = useState(false);
   const [showSeatMap, setShowSeatMap] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<string | undefined>(undefined);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [voiceModeActive, setVoiceModeActive] = useState(false);
+
+  const { 
+    voiceEnabled: voiceHookEnabled, 
+    toggleVoice, 
+    settings, 
+    updateSettings,
+    playAudio,
+  } = useVoice();
 
   // Auto-scroll to bottom when messages or loading indicator change
   useEffect(() => {
@@ -35,11 +61,47 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
     }
   }, [messages, selectedSeat]);
 
+  // Auto-play voice responses
+  useEffect(() => {
+    const latestMessage = messages[messages.length - 1];
+    if (
+      latestMessage && 
+      latestMessage.role === 'assistant' && 
+      latestMessage.audioData && 
+      settings.autoPlayResponses &&
+      voiceHookEnabled
+    ) {
+      playAudio(latestMessage.audioData);
+    }
+  }, [messages, settings.autoPlayResponses, voiceHookEnabled, playAudio]);
+
   const handleSend = useCallback(() => {
     if (!inputText.trim()) return;
-    onSendMessage(inputText);
+    onSendMessage(inputText, { 
+      enableVoice: voiceHookEnabled, 
+      enableNavigation: true 
+    });
     setInputText("");
-  }, [inputText, onSendMessage]);
+  }, [inputText, onSendMessage, voiceHookEnabled]);
+
+  const handleVoiceRecording = useCallback(async (audioBlob: Blob) => {
+    if (onVoiceMessage) {
+      onVoiceMessage(audioBlob);
+    } else {
+      // Fallback: convert audio to text and send as regular message
+      try {
+        const response = await uploadAudio(audioBlob);
+        if (response && response.transcript) {
+          onSendMessage(response.transcript, { 
+            enableVoice: voiceHookEnabled, 
+            enableNavigation: true 
+          });
+        }
+      } catch (error) {
+        console.error('Failed to process voice message:', error);
+      }
+    }
+  }, [onVoiceMessage, onSendMessage, voiceHookEnabled]);
 
   const handleSeatSelect = useCallback(
     (seat: string) => {
@@ -62,10 +124,35 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
 
   return (
     <div className="flex flex-col h-full flex-1 bg-white shadow-sm border border-gray-200 border-t-0 rounded-xl">
-      <div className="bg-blue-600 text-white h-12 px-4 flex items-center rounded-t-xl">
+      <div className="bg-blue-600 text-white h-12 px-4 flex items-center justify-between rounded-t-xl">
         <h2 className="font-semibold text-sm sm:text-base lg:text-lg">
           Customer View
         </h2>
+        <div className="flex items-center gap-2">
+          {/* Voice toggle */}
+          <button
+            onClick={toggleVoice}
+            className={`
+              p-2 rounded-lg transition-all duration-200
+              ${voiceHookEnabled 
+                ? 'bg-white bg-opacity-20 text-white hover:bg-opacity-30' 
+                : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+              }
+            `}
+            title={voiceHookEnabled ? 'Disable voice' : 'Enable voice'}
+          >
+            {voiceHookEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
+          
+          {/* Voice settings */}
+          <button
+            onClick={() => setShowVoiceSettings(true)}
+            className="p-2 rounded-lg bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all duration-200"
+            title="Voice settings"
+          >
+            <Settings size={16} />
+          </button>
+        </div>
       </div>
       {/* Messages */}
       <div className="flex-1 overflow-y-auto min-h-0 md:px-4 pt-4 pb-20">
@@ -84,6 +171,18 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
               ) : (
                 <div className="mr-4 rounded-[16px] rounded-bl-[4px] px-4 py-2 md:mr-24 text-zinc-900 bg-[#ECECF1] font-light max-w-[80%]">
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  {/* Voice playback for assistant messages */}
+                  {msg.role === 'assistant' && msg.audioData && voiceHookEnabled && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <VoicePlayback
+                        audioData={msg.audioData}
+                        agentName={msg.agent || 'Assistant'}
+                        showControls={true}
+                        showWaveform={false}
+                        className="text-xs"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -107,6 +206,24 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Voice mode full interface */}
+      <AnimatePresence>
+        {voiceModeActive && voiceHookEnabled && (
+          <motion.div
+            className="p-6 border-t border-gray-200 bg-gray-50"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+          >
+            <VoiceMicrophone
+              onAudioRecorded={handleVoiceRecording}
+              mode="full"
+              className="w-full"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Input area */}
       <div className="p-2 md:px-4">
         <div className="flex items-center">
@@ -119,7 +236,7 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
                     tabIndex={0}
                     dir="auto"
                     rows={2}
-                    placeholder="Message..."
+                    placeholder={voiceHookEnabled ? "Type a message or use voice..." : "Message..."}
                     className="mb-2 resize-none border-0 focus:outline-none text-sm bg-transparent px-0 pb-6 pt-2"
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
@@ -128,6 +245,33 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
                     onCompositionEnd={() => setIsComposing(false)}
                   />
                 </div>
+                
+                {/* Voice microphone (compact mode) */}
+                {voiceHookEnabled && (
+                  <VoiceMicrophone
+                    onAudioRecorded={handleVoiceRecording}
+                    mode="compact"
+                    className="mr-2"
+                  />
+                )}
+                
+                {/* Voice mode toggle */}
+                {voiceHookEnabled && (
+                  <button
+                    onClick={() => setVoiceModeActive(!voiceModeActive)}
+                    className={`
+                      flex h-8 w-8 items-center justify-center rounded-full transition-colors mr-2
+                      ${voiceModeActive 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }
+                    `}
+                    title={voiceModeActive ? 'Hide voice interface' : 'Show voice interface'}
+                  >
+                    <Volume2 size={16} />
+                  </button>
+                )}
+                
                 <button
                   disabled={!inputText.trim()}
                   className="flex h-8 w-8 items-end justify-center rounded-full bg-black text-white hover:opacity-70 disabled:bg-gray-300 disabled:text-gray-400 transition-colors focus:outline-none"
@@ -154,6 +298,14 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
           </div>
         </div>
       </div>
+
+      {/* Voice Settings Modal */}
+      <VoiceSettings
+        isOpen={showVoiceSettings}
+        onClose={() => setShowVoiceSettings(false)}
+        settings={settings}
+        onSettingsChange={updateSettings}
+      />
     </div>
   );
 }

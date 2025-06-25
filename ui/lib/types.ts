@@ -4,6 +4,9 @@ export interface Message {
   role: "user" | "assistant"
   agent?: string
   timestamp: Date
+  audioData?: string | null  // Base64 audio data
+  audioBlob?: Blob | null    // Audio blob for playback
+  hasVoice?: boolean         // Whether this message has voice
 }
 
 export interface Agent {
@@ -42,5 +45,26 @@ export interface GuardrailCheck {
   reasoning: string
   passed: boolean
   timestamp: Date
+}
+
+export interface RecordingMetadata {
+  recording_id: string
+  conversation_id?: string
+  user_id?: string
+  timestamp: string
+  duration?: number
+  file_size?: number
+  transcript?: string
+  agent_response?: string
+  confidence_score?: number
+  language?: string
+  file_format: string
+}
+
+export interface RecordingResponse {
+  recording_id: string
+  status: string
+  message: string
+  metadata?: RecordingMetadata
 }
 
