@@ -1,11 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from uuid import uuid4
 import time
 import logging
 import os
+import base64
+import tempfile
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -70,6 +73,13 @@ from agents import (
     InputGuardrailTripwireTriggered,
     Handoff,
 )
+
+# Voice service
+from voice_service import voice_service
+
+# OpenAI client for Whisper transcription
+import openai
+openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -540,3 +550,274 @@ async def chat_endpoint(req: ChatRequest):
         agents=_build_agents_list(),
         guardrails=final_guardrails,
     )
+
+
+# =========================
+# Voice Models
+# =========================
+
+class VoiceSynthesizeRequest(BaseModel):
+    text: str
+    agent: str = "triage"
+    language: str = "english"
+
+class VoiceSynthesizeResponse(BaseModel):
+    audio_base64: Optional[str] = None
+    error: Optional[str] = None
+    success: bool
+
+class VoiceTranscribeResponse(BaseModel):
+    text: str = ""
+    language: str = "english"
+    error: Optional[str] = None
+    success: bool
+
+
+# =========================
+# Voice Endpoints
+# =========================
+
+@app.post("/voice/synthesize", response_model=VoiceSynthesizeResponse)
+async def voice_synthesize(req: VoiceSynthesizeRequest):
+    """
+    Convert text to speech using ElevenLabs.
+    Returns base64-encoded audio (MP3 format).
+    """
+    if not voice_service.is_enabled():
+        return VoiceSynthesizeResponse(
+            audio_base64=None,
+            error="Voice synthesis is not available. Check ELEVENLABS_API_KEY configuration.",
+            success=False
+        )
+
+    try:
+        audio_base64 = voice_service.text_to_speech_base64(
+            text=req.text,
+            agent_type=req.agent,
+            language=req.language
+        )
+
+        if audio_base64:
+            return VoiceSynthesizeResponse(
+                audio_base64=audio_base64,
+                error=None,
+                success=True
+            )
+        else:
+            return VoiceSynthesizeResponse(
+                audio_base64=None,
+                error="Failed to generate audio",
+                success=False
+            )
+    except Exception as e:
+        logger.error(f"Voice synthesis error: {e}")
+        return VoiceSynthesizeResponse(
+            audio_base64=None,
+            error=str(e),
+            success=False
+        )
+
+
+@app.post("/voice/transcribe", response_model=VoiceTranscribeResponse)
+async def voice_transcribe(
+    audio: UploadFile = File(...),
+    language: str = Form(default="english")
+):
+    """
+    Transcribe audio to text using OpenAI Whisper.
+    Accepts audio file upload (WAV, MP3, M4A, etc.)
+    """
+    # Check if OpenAI API key is available
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not openai_key:
+        return VoiceTranscribeResponse(
+            text="",
+            language=language,
+            error="Transcription is not available. Check OPENAI_API_KEY configuration.",
+            success=False
+        )
+
+    try:
+        # Save uploaded audio to a temp file
+        suffix = ".wav"
+        if audio.filename:
+            if audio.filename.endswith(".mp3"):
+                suffix = ".mp3"
+            elif audio.filename.endswith(".m4a"):
+                suffix = ".m4a"
+            elif audio.filename.endswith(".webm"):
+                suffix = ".webm"
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            content = await audio.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        try:
+            # Transcribe with Whisper
+            with open(tmp_path, "rb") as audio_file:
+                transcription = openai_client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language="en" if language == "english" else "es" if language == "spanish" else "zh"
+                )
+
+            return VoiceTranscribeResponse(
+                text=transcription.text,
+                language=language,
+                error=None,
+                success=True
+            )
+        finally:
+            # Clean up temp file
+            os.unlink(tmp_path)
+
+    except Exception as e:
+        logger.error(f"Voice transcription error: {e}")
+        return VoiceTranscribeResponse(
+            text="",
+            language=language,
+            error=str(e),
+            success=False
+        )
+
+
+@app.get("/voice/status")
+async def voice_status():
+    """Check the status of voice services."""
+    return {
+        "tts_enabled": voice_service.is_enabled(),
+        "stt_enabled": bool(os.environ.get("OPENAI_API_KEY", "").strip()),
+        "supported_languages": ["english", "spanish", "mandarin"]
+    }
+
+
+# =========================
+# Twilio Voice Webhooks
+# =========================
+
+from housing_voice_agent import housing_voice_agent
+from fastapi.responses import PlainTextResponse
+
+
+@app.post("/webhooks/voice/incoming", response_class=PlainTextResponse)
+async def twilio_incoming_call(
+    CallSid: str = Form(...),
+    From: str = Form(default=""),
+    To: str = Form(default=""),
+):
+    """
+    Handle incoming Twilio voice calls.
+    Returns TwiML to greet the caller and gather speech.
+    """
+    logger.info(f"Incoming call: {CallSid} from {From}")
+
+    # Create call context
+    context = housing_voice_agent.get_or_create_call(CallSid, From)
+
+    # Get welcome message
+    welcome = housing_voice_agent.get_welcome_message(context.language)
+
+    # Generate TwiML to gather speech
+    webhook_base = os.getenv("WEBHOOK_BASE_URL", "")
+    action_url = f"{webhook_base}/webhooks/voice/process/{CallSid}"
+
+    twiml = housing_voice_agent.generate_twiml_gather(
+        prompt=welcome,
+        call_sid=CallSid,
+        action_url=action_url,
+        language=context.language
+    )
+
+    return PlainTextResponse(content=twiml, media_type="application/xml")
+
+
+@app.post("/webhooks/voice/process/{call_sid}", response_class=PlainTextResponse)
+async def twilio_process_speech(
+    call_sid: str,
+    SpeechResult: str = Form(default=""),
+    Confidence: float = Form(default=0.0),
+    CallSid: str = Form(default=""),
+):
+    """
+    Process speech gathered from the caller.
+    Calls the main chat endpoint and returns TwiML with the response.
+    """
+    logger.info(f"Processing speech for {call_sid}: {SpeechResult}")
+
+    context = housing_voice_agent.get_call(call_sid)
+    if not context:
+        logger.warning(f"No context found for call {call_sid}")
+        error_msg = housing_voice_agent.get_error_message()
+        return PlainTextResponse(
+            content=housing_voice_agent.generate_twiml_say(error_msg, hangup=True),
+            media_type="application/xml"
+        )
+
+    # Check for hangup keywords
+    if SpeechResult.lower() in ["goodbye", "bye", "thank you", "thanks", "adios", "gracias"]:
+        goodbye = housing_voice_agent.get_goodbye_message(context.language)
+        housing_voice_agent.end_call(call_sid)
+        return PlainTextResponse(
+            content=housing_voice_agent.generate_twiml_say(goodbye, context.language, hangup=True),
+            media_type="application/xml"
+        )
+
+    # Process through the main chat endpoint
+    async def chat_callback(message: str):
+        req = ChatRequest(message=message, conversation_id=f"voice-{call_sid}")
+        # We need to call our chat endpoint logic directly
+        # This is a simplified version - in production, refactor to share logic
+        try:
+            response = await chat_endpoint(req)
+            return response.model_dump()
+        except Exception as e:
+            logger.error(f"Chat callback error: {e}")
+            return None
+
+    response_text = await housing_voice_agent.process_speech(
+        call_sid=call_sid,
+        speech_text=SpeechResult,
+        chat_endpoint_callback=chat_callback
+    )
+
+    # Check if this is a transfer request
+    if "transfer" in response_text.lower() and "representative" in response_text.lower():
+        # Generate TwiML for transfer (Dial to the office number)
+        office_number = os.getenv("HOUSING_OFFICE_PHONE", "+16501234567")
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">{response_text}</Say>
+    <Dial>{office_number}</Dial>
+</Response>"""
+        return PlainTextResponse(content=twiml, media_type="application/xml")
+
+    # Continue conversation - gather more speech
+    webhook_base = os.getenv("WEBHOOK_BASE_URL", "")
+    action_url = f"{webhook_base}/webhooks/voice/process/{call_sid}"
+
+    twiml = housing_voice_agent.generate_twiml_gather(
+        prompt=response_text,
+        call_sid=call_sid,
+        action_url=action_url,
+        language=context.language
+    )
+
+    return PlainTextResponse(content=twiml, media_type="application/xml")
+
+
+@app.post("/webhooks/voice/status", response_class=PlainTextResponse)
+async def twilio_call_status(
+    CallSid: str = Form(...),
+    CallStatus: str = Form(...),
+):
+    """
+    Handle Twilio call status callbacks.
+    Cleans up call context when call ends.
+    """
+    logger.info(f"Call status update: {CallSid} -> {CallStatus}")
+
+    if CallStatus in ["completed", "busy", "failed", "no-answer", "canceled"]:
+        housing_voice_agent.end_call(CallSid)
+
+    return PlainTextResponse(content="OK", media_type="text/plain")

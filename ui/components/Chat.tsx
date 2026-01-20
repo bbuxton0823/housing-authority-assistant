@@ -4,17 +4,33 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import type { Message } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
 import { SeatMap } from "./seat-map";
+import { VoiceControls } from "./voice-controls";
 
 interface ChatProps {
   messages: Message[];
   onSendMessage: (message: string) => void;
   /** Whether waiting for assistant response */
   isLoading?: boolean;
+  /** Current agent name for voice synthesis */
+  currentAgent?: string;
 }
 
-export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
+export function Chat({ messages, onSendMessage, isLoading, currentAgent = "triage" }: ChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [inputText, setInputText] = useState("");
+
+  // Get last assistant message for voice playback
+  const lastAssistantMessage = messages
+    .filter((m) => m.role === "assistant" && m.content !== "DISPLAY_SEAT_MAP")
+    .pop()?.content;
+
+  // Handle voice transcription
+  const handleVoiceTranscription = useCallback(
+    (text: string) => {
+      onSendMessage(text);
+    },
+    [onSendMessage]
+  );
   const [isComposing, setIsComposing] = useState(false);
   const [showSeatMap, setShowSeatMap] = useState(false);
   const [selectedSeat, setSelectedSeat] = useState<string | undefined>(undefined);
@@ -113,13 +129,20 @@ export function Chat({ messages, onSendMessage, isLoading }: ChatProps) {
           <div className="flex w-full items-center pb-4 md:pb-1">
             <div className="flex w-full flex-col gap-1.5 rounded-2xl p-2.5 pl-1.5 bg-white border border-stone-200 shadow-sm transition-colors">
               <div className="flex items-end gap-1.5 md:gap-2 pl-4">
+                {/* Voice controls */}
+                <VoiceControls
+                  onTranscription={handleVoiceTranscription}
+                  lastAssistantMessage={lastAssistantMessage}
+                  currentAgent={currentAgent}
+                  disabled={isLoading}
+                />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <textarea
                     id="prompt-textarea"
                     tabIndex={0}
                     dir="auto"
                     rows={2}
-                    placeholder="Message..."
+                    placeholder="Message or press mic to speak..."
                     className="mb-2 resize-none border-0 focus:outline-none text-sm bg-transparent px-0 pb-6 pt-2"
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
