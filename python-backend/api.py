@@ -11,6 +11,46 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Apply safe OpenAI fix before any imports
+from safe_openai_fix import apply_safe_fix
+apply_safe_fix()
+
+# Configure Opik for local instance
+import opik
+import os
+
+# Set a local API key for development
+os.environ['OPIK_API_KEY'] = 'local-dev-key-housing-authority'
+
+try:
+    opik.configure(
+        url="http://localhost:8080",
+        workspace="housing-authority-assistant"
+    )
+    OPIK_ENABLED = True
+    print("✅ Opik configured successfully")
+except Exception as e:
+    print(f"⚠️ Opik configuration failed: {e}")
+    OPIK_ENABLED = False
+
+# Simple monitoring helper
+import json
+from datetime import datetime
+
+def log_conversation(conversation_id, message, response, agent_name, guardrails_status):
+    """Simple local logging for monitoring"""
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "conversation_id": conversation_id,
+        "input": message,
+        "output": response,
+        "agent": agent_name,
+        "guardrails": guardrails_status
+    }
+    
+    with open("conversation_logs.jsonl", "a") as f:
+        f.write(json.dumps(log_entry) + "\n")
+
 from main import (
     triage_agent,
     general_info_agent,
@@ -166,6 +206,19 @@ async def chat_endpoint(req: ChatRequest):
     Main chat endpoint for agent orchestration.
     Handles conversation state, agent routing, and guardrail checks.
     """
+    
+    # Start Opik tracing if enabled
+    if OPIK_ENABLED:
+        try:
+            with opik.track(
+                name="Housing Authority Chat",
+                input={"message": req.message, "conversation_id": req.conversation_id},
+                metadata={"system": "housing-authority-assistant"}
+            ) as trace:
+                pass  # Context manager will handle trace creation
+        except Exception as e:
+            logger.warning(f"Opik tracing failed: {e}")
+    
     # Initialize or retrieve conversation state
     is_new = not req.conversation_id or conversation_store.get(req.conversation_id) is None
     if is_new:
@@ -198,7 +251,45 @@ async def chat_endpoint(req: ChatRequest):
     guardrail_checks: List[GuardrailCheck] = []
 
     try:
-        result = await Runner.run(current_agent, state["input_items"], context=state["context"])
+        # Check if OpenAI API key is configured
+        openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if not openai_key:
+            logger.warning("OPENAI_API_KEY is not set - returning degraded mode response")
+            degraded_response = (
+                "The Housing Authority Assistant is currently unavailable due to a configuration issue. "
+                "Please try again later or contact us directly:\n\n"
+                "Email: customerservice@smchousing.org\n"
+                "Phone: (650) 123-4567\n\n"
+                "Housing Authority Office Hours:\n"
+                "Monday through Friday, 8:00 AM to 5:00 PM\n"
+                "Closed weekends and holidays"
+            )
+            return ChatResponse(
+                conversation_id=conversation_id,
+                current_agent=current_agent.name,
+                messages=[MessageResponse(content=degraded_response, agent=current_agent.name)],
+                events=[],
+                context=state["context"].model_dump(),
+                agents=_build_agents_list(),
+                guardrails=[],
+            )
+
+        # Execute agent with optional Opik tracking
+        if OPIK_ENABLED:
+            try:
+                with opik.track(
+                    name=f"Agent: {current_agent.name}",
+                    input={"message": req.message, "agent": current_agent.name},
+                    metadata={"agent_type": current_agent.name, "conversation_id": conversation_id}
+                ) as agent_span:
+                    result = await Runner.run(current_agent, state["input_items"], context=state["context"])
+                    agent_span.update(output={"status": "completed"})
+            except Exception as opik_error:
+                logger.warning(f"Opik agent tracking failed: {opik_error}")
+                result = await Runner.run(current_agent, state["input_items"], context=state["context"])
+        else:
+            result = await Runner.run(current_agent, state["input_items"], context=state["context"])
+
     except InputGuardrailTripwireTriggered as e:
         failed = e.guardrail_result.guardrail
         gr_output = e.guardrail_result.output.output_info
@@ -220,6 +311,29 @@ async def chat_endpoint(req: ChatRequest):
         else:
             refusal = "Sorry, I can only answer questions related to housing authority services.\n\nFor other inquiries, please send a detailed email to customerservice@smchousing.org and an HPS or housing authority specialist will be in contact with you.\n\nHousing Authority Office Hours:\nMonday through Friday, 8:00 AM to 5:00 PM\nClosed weekends and holidays"
         state["input_items"].append({"role": "assistant", "content": refusal})
+        
+        # Log guardrail failure
+        log_conversation(
+            conversation_id=conversation_id,
+            message=req.message,
+            response=refusal,
+            agent_name=current_agent.name,
+            guardrails_status={"failed": _get_guardrail_name(failed), "passed": []}
+        )
+        
+        # Track guardrail failure in Opik if enabled
+        if OPIK_ENABLED:
+            try:
+                with opik.track(
+                    name="Guardrail Failure",
+                    input={"message": req.message, "guardrail": _get_guardrail_name(failed)},
+                    output={"guardrail_triggered": _get_guardrail_name(failed), "refusal": refusal},
+                    tags=["guardrail_failure"]
+                ):
+                    pass
+            except Exception as e:
+                logger.warning(f"Opik guardrail tracking failed: {e}")
+        
         return ChatResponse(
             conversation_id=conversation_id,
             current_agent=current_agent.name,
@@ -228,6 +342,42 @@ async def chat_endpoint(req: ChatRequest):
             context=state["context"].model_dump(),
             agents=_build_agents_list(),
             guardrails=guardrail_checks,
+        )
+
+    except Exception as e:
+        # Handle OpenAI API errors and other unexpected errors gracefully
+        logger.error(f"Error processing chat request: {e}")
+        error_message = str(e).lower()
+
+        if "api key" in error_message or "authentication" in error_message or "401" in error_message:
+            error_response = (
+                "The Housing Authority Assistant is currently unavailable due to a configuration issue. "
+                "Please try again later or contact us directly:\n\n"
+                "Email: customerservice@smchousing.org\n"
+                "Phone: (650) 123-4567\n\n"
+                "Housing Authority Office Hours:\n"
+                "Monday through Friday, 8:00 AM to 5:00 PM\n"
+                "Closed weekends and holidays"
+            )
+        else:
+            error_response = (
+                "I apologize, but I encountered an error processing your request. "
+                "Please try again or contact us directly:\n\n"
+                "Email: customerservice@smchousing.org\n"
+                "Phone: (650) 123-4567\n\n"
+                "Housing Authority Office Hours:\n"
+                "Monday through Friday, 8:00 AM to 5:00 PM\n"
+                "Closed weekends and holidays"
+            )
+
+        return ChatResponse(
+            conversation_id=conversation_id,
+            current_agent=current_agent.name,
+            messages=[MessageResponse(content=error_response, agent=current_agent.name)],
+            events=[],
+            context=state["context"].model_dump(),
+            agents=_build_agents_list(),
+            guardrails=[],
         )
 
     messages: List[MessageResponse] = []
@@ -349,6 +499,38 @@ async def chat_endpoint(req: ChatRequest):
                 timestamp=time.time() * 1000,
             ))
 
+    # Log successful response
+    response_content = [msg.content for msg in messages]
+    guardrails_passed = [g.name for g in final_guardrails if g.passed]
+    guardrails_failed = [g.name for g in final_guardrails if not g.passed]
+    
+    log_conversation(
+        conversation_id=conversation_id,
+        message=req.message,
+        response=response_content,
+        agent_name=current_agent.name,
+        guardrails_status={"passed": guardrails_passed, "failed": guardrails_failed}
+    )
+    
+    # Track successful response in Opik if enabled
+    if OPIK_ENABLED:
+        try:
+            with opik.track(
+                name="Successful Response",
+                input={"message": req.message, "conversation_id": conversation_id},
+                output={"messages": response_content, "agent": current_agent.name},
+                tags=["success"],
+                metadata={
+                    "conversation_id": conversation_id,
+                    "final_agent": current_agent.name,
+                    "guardrails_passed": len([g for g in final_guardrails if g.passed]),
+                    "guardrails_failed": len([g for g in final_guardrails if not g.passed])
+                }
+            ):
+                pass
+        except Exception as e:
+            logger.warning(f"Opik success tracking failed: {e}")
+    
     return ChatResponse(
         conversation_id=conversation_id,
         current_agent=current_agent.name,

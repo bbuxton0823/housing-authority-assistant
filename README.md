@@ -1,6 +1,6 @@
-# Housing Authority Assistant
+# AI Travel Assistant
 
-A comprehensive multi-agent customer service system built with the OpenAI Agents SDK, designed specifically for housing authority services including HQS inspections, Section 8 assistance, and Housing Program Specialist (HPS) support.
+A comprehensive multi-agent travel planning platform powered by CrewAI, featuring intelligent flight and train booking, weather forecasting, and multi-modal communication (web, voice, SMS).
 
 ## 🖥️ Interface Overview
 
@@ -168,10 +168,24 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Set up environment variables
+# Set up environment variables (Mac users: see Mac Setup section below)
 cp .env.example .env
 # Edit .env and add your OpenAI API key:
 # OPENAI_API_KEY=your_openai_api_key_here
+```
+
+#### 🍎 Mac Setup (Recommended)
+Mac users may experience Unicode copy/paste issues with API keys. Use our Mac-friendly setup:
+
+```bash
+# Interactive API key setup with automatic Unicode fixing
+python set_api_key.py
+
+# Test your setup
+python test_api_key.py
+
+# Alternative: Start server with bypass for .env issues
+python start_server.py
 ```
 
 ### 3. Frontend Setup
@@ -308,6 +322,12 @@ relevance_guardrail = guardrail_function(
 ### Backend Testing
 ```bash
 cd python-backend
+source .venv/bin/activate
+
+# Run pytest tests
+pytest test_api.py -v
+
+# Manual tests
 # Test API health
 curl http://localhost:8000/health
 
@@ -322,7 +342,6 @@ curl -X POST http://localhost:8000/chat \
 cd ui
 npm run lint        # Lint checking
 npm run type-check  # TypeScript validation
-npm run test        # Run test suite (if configured)
 ```
 
 ### End-to-End Testing
@@ -436,6 +455,12 @@ python -m uvicorn api:app --reload  # Backend with auto-reload
 - Verify backend is running on port 8000
 - Check CORS configuration in `python-backend/api.py`
 - Confirm proxy settings in `ui/next.config.mjs`
+
+**Mac Unicode copy/paste issues:**
+- If you get `UnicodeEncodeError` with OpenAI API calls
+- API key contains Unicode characters from Terminal copy/paste
+- **Solution**: Use `python set_api_key.py` for Mac-friendly setup
+- **Alternative**: Use `python start_server.py` to bypass .env issues
 
 For more troubleshooting, see: [docs/setup/TROUBLESHOOTING.md](docs/setup/TROUBLESHOOTING.md)
 

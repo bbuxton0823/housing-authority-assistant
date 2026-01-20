@@ -1,14 +1,17 @@
 {
-  "name": "openai-airline-agentsdk-demo",
-  "version": "0.1.0",
+  "name": "ai-travel-assistant",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev:next": "npx next dev",
-    "dev:server": "cd ../python-backend && .venv/bin/uvicorn api:app --reload --host 0.0.0.0 --port 8000",
+    "dev:server": "cd ../python-backend && python start_simple_server.py",
     "dev": "concurrently \"npm run dev:next\" \"npm run dev:server\"",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "install-backend": "cd ../python-backend && pip install -r requirements.txt",
+    "setup": "npm install && npm run install-backend"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.2.9",
@@ -28,12 +31,18 @@
     "wavtools": "^0.1.5"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/js": "^9.39.2",
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "concurrently": "^9.1.2",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "^16.1.4",
+    "globals": "^17.0.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5"
+    "typescript": "^5",
+    "typescript-eslint": "^8.53.1"
   }
 }
