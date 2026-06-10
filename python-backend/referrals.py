@@ -39,6 +39,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 OUTBOX_PATH = Path(__file__).parent / "referrals_outbox.jsonl"
+ROUTING_PATH = Path(__file__).parent / "team_routing.json"
 
 # Canonical team registry: key -> (display name, env var for override address)
 TEAMS = {
@@ -49,6 +50,33 @@ TEAMS = {
     "voucher_other": ("Voucher/Other Team", "TEAM_EMAIL_VOUCHER_OTHER"),
     "hcd": ("HCD", "TEAM_EMAIL_HCD"),
 }
+
+
+def load_routing() -> dict:
+    """Load the editable routing config (managed from the dashboard admin panel)."""
+    default = {
+        "general_mailbox": os.getenv("REFERRAL_MAILBOX", "").strip(),
+        "teams": {key: "" for key in TEAMS},
+    }
+    if ROUTING_PATH.exists():
+        try:
+            data = json.loads(ROUTING_PATH.read_text(encoding="utf-8"))
+            default["general_mailbox"] = data.get("general_mailbox", default["general_mailbox"])
+            for key in TEAMS:
+                default["teams"][key] = (data.get("teams", {}).get(key) or "").strip()
+        except Exception as e:
+            logger.error(f"Could not read {ROUTING_PATH}: {e}")
+    return default
+
+
+def save_routing(general_mailbox: str, teams: dict) -> dict:
+    """Persist routing config edited in the dashboard."""
+    cfg = {
+        "general_mailbox": (general_mailbox or "").strip(),
+        "teams": {key: (teams.get(key) or "").strip() for key in TEAMS},
+    }
+    ROUTING_PATH.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    return cfg
 
 
 def normalize_team(team: str) -> str | None:
@@ -69,13 +97,23 @@ def normalize_team(team: str) -> str | None:
     return aliases.get(t)
 
 
+def _general_mailbox() -> str:
+    return load_routing()["general_mailbox"] or os.getenv("REFERRAL_MAILBOX", "").strip()
+
+
 def _smtp_configured() -> bool:
-    return bool(os.getenv("SMTP_HOST", "").strip() and os.getenv("REFERRAL_MAILBOX", "").strip())
+    return bool(os.getenv("SMTP_HOST", "").strip() and _general_mailbox())
 
 
 def _team_address(team_key: str) -> str:
+    """Resolution order: dashboard config (per team) -> env override -> general mailbox."""
+    routing = load_routing()
     _, env_var = TEAMS[team_key]
-    return os.getenv(env_var, "").strip() or os.getenv("REFERRAL_MAILBOX", "").strip()
+    return (
+        routing["teams"].get(team_key, "").strip()
+        or os.getenv(env_var, "").strip()
+        or _general_mailbox()
+    )
 
 
 def build_referral(team_key: str, *, name: str, email: str = "", phone: str = "",
@@ -150,7 +188,8 @@ def _send_smtp(msg: EmailMessage) -> None:
 
 
 def _write_outbox(ref: dict, status: str, error: str = "") -> None:
-    record = dict(ref, delivery_status=status, delivery_error=error)
+    record = dict(ref, routed_to=_team_address(ref["team_key"]) or "(no address configured)",
+                  delivery_status=status, delivery_error=error)
     with open(OUTBOX_PATH, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 

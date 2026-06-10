@@ -23,6 +23,10 @@ const nextConfig = {
         source: "/health",
         destination: `${backend}/health`,
       },
+      {
+        source: "/admin/:path*",
+        destination: `${backend}/admin/:path*`,
+      },
     ];
   },
 };

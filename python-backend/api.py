@@ -491,6 +491,46 @@ async def chat_endpoint(req: ChatRequest):
 
 
 # =========================
+# Admin: Team Referral Routing
+# =========================
+# TEST MODE: these endpoints are unauthenticated for local development.
+# Before any public deployment, put them behind staff authentication
+# (e.g., reverse-proxy auth or an ADMIN_TOKEN check).
+
+from referrals import TEAMS as REFERRAL_TEAMS, load_routing, save_routing, _smtp_configured
+
+class RoutingUpdate(BaseModel):
+    general_mailbox: str = ""
+    teams: Dict[str, str] = {}
+
+@app.get("/admin/routing")
+async def get_routing():
+    """Current referral email routing config for the dashboard."""
+    cfg = load_routing()
+    return {
+        "general_mailbox": cfg["general_mailbox"],
+        "teams": [
+            {
+                "key": key,
+                "name": REFERRAL_TEAMS[key][0],
+                "email": cfg["teams"].get(key, ""),
+                "placeholder": f"{key.replace('_', '')}@yourpha.org",
+            }
+            for key in REFERRAL_TEAMS
+        ],
+        "smtp_configured": _smtp_configured(),
+        "test_mode": not _smtp_configured(),
+    }
+
+@app.put("/admin/routing")
+async def put_routing(update: RoutingUpdate):
+    """Save referral email routing edited in the dashboard."""
+    cfg = save_routing(update.general_mailbox, update.teams)
+    logger.info(f"Referral routing updated: general={cfg['general_mailbox'] or '(unset)'}")
+    return {"saved": True, **cfg, "smtp_configured": _smtp_configured()}
+
+
+# =========================
 # Voice Models
 # =========================
 

@@ -6,6 +6,7 @@ import { AgentsList } from "./agents-list";
 import { Guardrails } from "./guardrails";
 import { ConversationContext } from "./conversation-context";
 import { RunnerOutput } from "./runner-output";
+import { EmailRouting } from "./email-routing";
 
 interface AgentPanelProps {
   agents: Agent[];
@@ -50,6 +51,7 @@ export function AgentPanel({
           inputGuardrails={activeAgent?.input_guardrails ?? []}
         />
         <ConversationContext context={context} />
+        <EmailRouting />
         <RunnerOutput runnerEvents={runnerEvents} />
       </div>
     </div>
