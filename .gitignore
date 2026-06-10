@@ -136,3 +136,4 @@ ui/.next/
 # Assistant runtime data (may contain caller contact info)
 conversation_logs.jsonl
 referrals_outbox.jsonl
+voice_cache/

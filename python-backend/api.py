@@ -677,8 +677,51 @@ async def voice_status():
 # Twilio Voice Webhooks
 # =========================
 
-from housing_voice_agent import housing_voice_agent
-from fastapi.responses import PlainTextResponse
+from housing_voice_agent import housing_voice_agent, speech_safe as _speech_clean
+from fastapi.responses import PlainTextResponse, FileResponse
+import hashlib
+import re as _re
+from pathlib import Path as _Path
+
+# ElevenLabs audio for phone calls: the backend renders each reply to MP3 and
+# Twilio fetches it via <Play>. No ElevenLabs key ever goes into Twilio; no
+# ConversationRelay/AI addendum needed. Falls back to Polly <Say> automatically
+# if synthesis fails or WEBHOOK_BASE_URL is unset.
+VOICE_CACHE_DIR = _Path(__file__).parent / "voice_cache"
+VOICE_CACHE_DIR.mkdir(exist_ok=True)
+PHONE_TTS = os.getenv("PHONE_TTS", "elevenlabs").lower()  # "elevenlabs" | "polly"
+
+
+def phone_tts_url(text: str, agent_type: str = "triage", language: str = "english") -> str | None:
+    """Render text with ElevenLabs and return a public URL for Twilio <Play>."""
+    base = os.getenv("WEBHOOK_BASE_URL", "").strip().rstrip("/")
+    if PHONE_TTS != "elevenlabs" or not base or not voice_service.is_enabled():
+        return None
+    try:
+        # de-markdown for speech, then synthesize with the agent's voice
+        clean = _re.sub(r"\s+", " ", text or "").strip()
+        audio = voice_service.text_to_speech(clean, agent_type, language)
+        if not audio:
+            return None
+        audio_id = hashlib.sha1(f"{agent_type}:{language}:{clean}".encode()).hexdigest()[:24]
+        path = VOICE_CACHE_DIR / f"{audio_id}.mp3"
+        if not path.exists():
+            path.write_bytes(audio)
+        return f"{base}/voice/audio/{audio_id}.mp3"
+    except Exception as e:
+        logger.warning(f"Phone TTS failed, falling back to Polly: {e}")
+        return None
+
+
+@app.get("/voice/audio/{audio_id}.mp3")
+async def voice_audio(audio_id: str):
+    """Serve cached phone-call audio for Twilio <Play>."""
+    if not _re.fullmatch(r"[0-9a-f]{24}", audio_id):
+        return Response(status_code=404)
+    path = VOICE_CACHE_DIR / f"{audio_id}.mp3"
+    if not path.exists():
+        return Response(status_code=404)
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 @app.post("/webhooks/voice/incoming", response_class=PlainTextResponse)
@@ -707,7 +750,8 @@ async def twilio_incoming_call(
         prompt=welcome,
         call_sid=CallSid,
         action_url=action_url,
-        language=context.language
+        language=context.language,
+        audio_url=phone_tts_url(welcome, "triage", context.language),
     )
 
     return PlainTextResponse(content=twiml, media_type="application/xml")
@@ -738,9 +782,11 @@ async def twilio_process_speech(
     # Check for hangup keywords
     if SpeechResult.lower() in ["goodbye", "bye", "thank you", "thanks", "adios", "gracias"]:
         goodbye = housing_voice_agent.get_goodbye_message(context.language)
+        goodbye_audio = phone_tts_url(goodbye, "triage", context.language)
         housing_voice_agent.end_call(call_sid)
         return PlainTextResponse(
-            content=housing_voice_agent.generate_twiml_say(goodbye, context.language, hangup=True),
+            content=housing_voice_agent.generate_twiml_say(goodbye, context.language, hangup=True,
+                                                           audio_url=goodbye_audio),
             media_type="application/xml"
         )
 
@@ -778,11 +824,13 @@ async def twilio_process_speech(
     webhook_base = os.getenv("WEBHOOK_BASE_URL", "")
     action_url = f"{webhook_base}/webhooks/voice/process/{call_sid}"
 
+    last_agent = context.collected_data.get("last_agent", "triage")
     twiml = housing_voice_agent.generate_twiml_gather(
         prompt=response_text,
         call_sid=call_sid,
         action_url=action_url,
-        language=context.language
+        language=context.language,
+        audio_url=phone_tts_url(response_text, last_agent, context.language),
     )
 
     return PlainTextResponse(content=twiml, media_type="application/xml")

@@ -73,7 +73,9 @@ The backend already speaks TwiML; the number just needs to point at it.
    (The current config points to an old ngrok URL with path `/webhook/voice` - note the path here is different: `/webhooks/voice/incoming`.)
 4. Call +1 571 626 7576. The triage flow answers, routes through the live agents, and says "transfer ... representative" requests get `<Dial>`ed to `HOUSING_OFFICE_PHONE`.
 
-Notes: the free ngrok URL changes on every restart - re-update both places. SMS is not implemented (the number's current `/webhook/sms` setting can be cleared). Phone voices use Twilio Polly (Joanna/Lupe); web chat uses the ElevenLabs voices.
+Notes: the free ngrok URL changes on every restart - re-update both places. SMS is not implemented (the number's current `/webhook/sms` setting can be cleared).
+
+**ElevenLabs voices on phone calls:** the backend renders every reply to MP3 with your ElevenLabs key (per-agent voices) and serves it to Twilio via `<Play>` - so the same voices callers hear on the web work on the phone. No ElevenLabs key goes into Twilio, and no ConversationRelay/AI-ML addendum is required. Requirements: `WEBHOOK_BASE_URL` must be set (Twilio fetches the audio from it) and `ELEVENLABS_API_KEY` valid; if synthesis ever fails the call automatically falls back to Twilio Polly. Set `PHONE_TTS=polly` to force the fallback. Generated audio is cached in `python-backend/voice_cache/` (gitignored). ConversationRelay (`ttsProvider="ElevenLabs"`) remains an optional future upgrade for lower latency, but it requires accepting Twilio's Predictive/Generative AI-ML Features Addendum - that's an agreement for you to accept (or not) in Voice -> Settings -> General; nothing in this app needs it.
 
 ## Pre-launch checklist (either option)
 

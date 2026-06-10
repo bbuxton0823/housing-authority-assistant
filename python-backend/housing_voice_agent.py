@@ -290,6 +290,7 @@ class HousingVoiceAgent:
 
             if response and "messages" in response and len(response["messages"]) > 0:
                 assistant_response = response["messages"][0]["content"]
+                context.collected_data["last_agent"] = response.get("current_agent", "triage")
                 context.add_message("assistant", assistant_response)
                 return assistant_response
             else:
@@ -304,20 +305,24 @@ class HousingVoiceAgent:
         prompt: str,
         call_sid: str,
         action_url: str,
-        language: str = "english"
+        language: str = "english",
+        audio_url: str | None = None,
     ) -> str:
         """
         Generate TwiML for gathering speech input.
 
-        Returns TwiML XML string.
+        If audio_url is provided (ElevenLabs MP3 rendered by the backend),
+        Twilio plays it; otherwise falls back to Twilio's Polly <Say>.
         """
         voice = "Polly.Joanna" if language == "english" else "Polly.Lupe"
         twiml_language = "en-US" if language == "english" else "es-MX"
+        inner = (f'<Play>{_xml_escape(audio_url)}</Play>' if audio_url
+                 else f'<Say voice="{voice}">{speech_safe(prompt)}</Say>')
 
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Gather input="speech" action="{action_url}" method="POST" speechTimeout="auto" language="{twiml_language}">
-        <Say voice="{voice}">{speech_safe(prompt)}</Say>
+        {inner}
     </Gather>
     <Say voice="{voice}">I didn't hear anything. Goodbye.</Say>
 </Response>"""
@@ -326,20 +331,21 @@ class HousingVoiceAgent:
         self,
         message: str,
         language: str = "english",
-        hangup: bool = False
+        hangup: bool = False,
+        audio_url: str | None = None,
     ) -> str:
         """
-        Generate TwiML for saying a message.
-
-        Returns TwiML XML string.
+        Generate TwiML for saying a message (ElevenLabs <Play> when available,
+        Polly <Say> fallback).
         """
         voice = "Polly.Joanna" if language == "english" else "Polly.Lupe"
-
         hangup_tag = "<Hangup/>" if hangup else ""
+        inner = (f'<Play>{_xml_escape(audio_url)}</Play>' if audio_url
+                 else f'<Say voice="{voice}">{speech_safe(message)}</Say>')
 
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="{voice}">{speech_safe(message)}</Say>
+    {inner}
     {hangup_tag}
 </Response>"""
 
