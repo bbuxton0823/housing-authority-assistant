@@ -174,6 +174,16 @@ cp .env.example .env
 # OPENAI_API_KEY=your_openai_api_key_here
 ```
 
+#### Build the knowledge base (RAG)
+The agents answer policy questions from a knowledge base of public documents (HACSM Admin Plan, HUD NSPIRE standards, HCV guidebook chapters, California housing law guides) in `python-backend/rag_docs/`:
+
+```bash
+# Creates an OpenAI vector store, uploads the docs, writes VECTOR_STORE_ID to .env
+python build_rag.py
+```
+
+Public documents only — see `docs/DATA_ACCESS_POLICY.md` for the access and PII rules.
+
 #### Optional: voice support
 Add to `.env` for spoken replies and voice input:
 

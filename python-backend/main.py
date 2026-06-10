@@ -3,6 +3,9 @@ from __future__ import annotations as _annotations
 import os
 import random
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Models are configurable via environment (.env)
 MAIN_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
@@ -45,6 +48,7 @@ SCOPE_NOTE = {
 
 from agents import (
     Agent,
+    FileSearchTool,
     RunContextWrapper,
     Runner,
     TResponseInputItem,
@@ -54,6 +58,39 @@ from agents import (
     input_guardrail,
 )
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
+
+# Knowledge base (RAG): an OpenAI vector store holding PUBLIC documents only -
+# HUD HCV guidebook chapters, NSPIRE inspection standards, the HACSM
+# Administrative Plan, and California housing law guides. Built with build_rag.py.
+VECTOR_STORE_ID = os.getenv("VECTOR_STORE_ID", "").strip()
+KB_TOOLS = (
+    [FileSearchTool(vector_store_ids=[VECTOR_STORE_ID], max_num_results=5)]
+    if VECTOR_STORE_ID
+    else []
+)
+KB_NOTE = {
+    "english": (
+        "\n\nKNOWLEDGE BASE: Use the file_search tool to answer program and policy questions. It contains: "
+        "the HACSM Administrative Plan (FY 2025-26) for Housing Voucher and Moving to Work programs, "
+        "HUD NSPIRE inspection standards and inspection protocol (NSPIRE replaces HQS - explain standards in NSPIRE terms), "
+        "HUD Housing Choice Voucher guidebook chapters (eligibility, payment standards, reexaminations, moves/portability, leasing), "
+        "and California housing law guides (AB 1482 Tenant Protection Act, CA tenants'/landlords' rights). "
+        "Always search the knowledge base before answering policy questions, and tell the user which document the answer comes from. "
+        "If the knowledge base doesn't cover it, say so and offer a live representative."
+    ),
+    "spanish": (
+        "\n\nBASE DE CONOCIMIENTOS: Usa la herramienta file_search para responder preguntas sobre programas y politicas. Contiene: "
+        "el Plan Administrativo de HACSM (FY 2025-26), los estandares de inspeccion NSPIRE de HUD (NSPIRE reemplaza a HQS), "
+        "capitulos de la guia del programa de Vales de Eleccion de Vivienda de HUD, y guias de leyes de vivienda de California (AB 1482). "
+        "Siempre busca en la base de conocimientos antes de responder preguntas de politicas e indica de que documento proviene la respuesta."
+    ),
+    "mandarin": (
+        "\n\n知识库：使用file_search工具回答项目和政策问题。其中包含：HACSM行政计划（2025-26财年）、"
+        "HUD NSPIRE检查标准（NSPIRE取代HQS）、HUD住房选择券指南章节，以及加州住房法律指南（AB 1482）。"
+        "回答政策问题前务必先搜索知识库，并告知用户答案来自哪份文件。"
+    ),
+}
+
 
 # =========================
 # CONTEXT
@@ -1005,7 +1042,7 @@ async def get_inspection_requirements(
     language = getattr(context.context, 'language', 'english')
     
     requirements = {
-        "english": """HQS Inspection Requirements:
+        "english": """Inspection Preparation (HUD NSPIRE standards):
 • All utilities must be on (water, gas, electric)
 • Unit must be clean and accessible
 • Smoke detectors must be present and working
@@ -1017,7 +1054,7 @@ async def get_inspection_requirements(
 
 The inspection typically takes 30-60 minutes. You or an adult representative must be present.""",
         
-        "spanish": """Requisitos de Inspección HQS:
+        "spanish": """Preparación para la Inspección (estándares NSPIRE de HUD):
 • Todos los servicios públicos deben estar encendidos (agua, gas, electricidad)
 • La unidad debe estar limpia y accesible
 • Los detectores de humo deben estar presentes y funcionando
@@ -1029,7 +1066,7 @@ The inspection typically takes 30-60 minutes. You or an adult representative mus
 
 La inspección típicamente toma 30-60 minutos. Usted o un representante adulto debe estar presente.""",
         
-        "mandarin": """HQS检查要求：
+        "mandarin": """检查准备（HUD NSPIRE标准）：
 • 所有公用设施必须开启（水、煤气、电）
 • 住房单位必须干净且可进入
 • 必须有烟雾探测器且工作正常
@@ -1059,7 +1096,7 @@ guardrail_agent = Agent(
     instructions=(
         "Determine if the user's message is related to housing authority services and programs. "
         "ALLOWED topics include: leasing, rental assistance, housing inspections (including ALL inspection questions about appliances, smoke detectors, utilities, repairs, HQS requirements, pass/fail criteria), Section 8 vouchers, "
-        "landlord services, HPS appointments, income reporting, HQS standards, HUD regulations, "
+        "landlord services, HPS appointments, income reporting, HQS and NSPIRE inspection standards, HUD regulations, California housing laws (e.g., AB 1482), "
         "housing applications, waitlist inquiries, door codes, contact updates, documentation, "
         "housing authority hours and contact information, maintenance issues affecting inspections, "
         "unit conditions, safety requirements, inspection scheduling/rescheduling, "
@@ -1227,7 +1264,8 @@ def inspection_instructions(
     instructions_map = {
         "english": (
             f"{RECOMMENDED_PROMPT_PREFIX}\n"
-            "You are a Housing Quality Standards (HQS) Inspection Agent. You help with scheduling, rescheduling, and canceling inspections.\n"
+            "You are the Inspection Agent. You help with inspection requests and explain inspection standards. "
+            "HUD has transitioned from HQS to NSPIRE (National Standards for the Physical Inspection of Real Estate); explain requirements using NSPIRE standards.\n"
             f"Current participant: {participant_name} (T-code: {t_code})\n"
             "Your responsibilities:\n"
             "1. SCHEDULING: Help schedule new HQS inspections with preferred dates/times\n"
@@ -1242,7 +1280,8 @@ def inspection_instructions(
         ),
         "spanish": (
             f"{RECOMMENDED_PROMPT_PREFIX}\n"
-            "Eres un Agente de Inspección de Estándares de Calidad de Vivienda (HQS). Ayudas con programar, reprogramar y cancelar inspecciones.\n"
+            "Eres el Agente de Inspecciones. Ayudas con solicitudes de inspección y explicas los estándares. "
+            "HUD ha pasado de HQS a NSPIRE (Estándares Nacionales para la Inspección Física de Bienes Raíces); explica los requisitos usando los estándares NSPIRE.\n"
             f"Participante actual: {participant_name} (código T: {t_code})\n"
             "Tus responsabilidades:\n"
             "1. PROGRAMACIÓN: Ayudar a programar nuevas inspecciones HQS con fechas/horas preferidas\n"
@@ -1256,7 +1295,7 @@ def inspection_instructions(
         ),
         "mandarin": (
             f"{RECOMMENDED_PROMPT_PREFIX}\n"
-            "您是住房质量标准(HQS)检查代理。您帮助安排、重新安排和取消检查。\n"
+            "您是检查代理。您帮助处理检查请求并解释检查标准。HUD已从HQS过渡到NSPIRE（房地产实物检查国家标准）；请使用NSPIRE标准解释要求。\n"
             f"当前参与者：{participant_name}（T代码：{t_code}）\n"
             "您的职责：\n"
             "1. 安排：帮助安排新的HQS检查，包括首选日期/时间\n"
@@ -1270,7 +1309,11 @@ def inspection_instructions(
         )
     }
     
-    return instructions_map.get(language, instructions_map["english"]) + SCOPE_NOTE.get(language, SCOPE_NOTE["english"])
+    return (
+        instructions_map.get(language, instructions_map["english"])
+        + SCOPE_NOTE.get(language, SCOPE_NOTE["english"])
+        + (KB_NOTE.get(language, KB_NOTE["english"]) if KB_TOOLS else "")
+    )
 
 inspection_agent = Agent[HousingAuthorityContext](
     name="Inspection Agent",
@@ -1290,7 +1333,8 @@ inspection_agent = Agent[HousingAuthorityContext](
         extract_t_code,
         extract_contact_info,
         get_language_instructions,
-        transfer_to_live_representative
+        transfer_to_live_representative,
+        *KB_TOOLS
     ],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
 )
@@ -1389,14 +1433,18 @@ def landlord_services_instructions(
         )
     }
     
-    return instructions_map.get(language, instructions_map["english"]) + SCOPE_NOTE.get(language, SCOPE_NOTE["english"])
+    return (
+        instructions_map.get(language, instructions_map["english"])
+        + SCOPE_NOTE.get(language, SCOPE_NOTE["english"])
+        + (KB_NOTE.get(language, KB_NOTE["english"]) if KB_TOOLS else "")
+    )
 
 landlord_services_agent = Agent[HousingAuthorityContext](
     name="Landlord Services Agent",
     model=MAIN_MODEL,
     handoff_description="An agent to assist landlords with Section 8 documentation and payment changes.",
     instructions=landlord_services_instructions,
-    tools=[update_payment_method, request_landlord_forms, housing_faq_lookup_tool, extract_contact_info, transfer_to_live_representative],
+    tools=[update_payment_method, request_landlord_forms, housing_faq_lookup_tool, extract_contact_info, transfer_to_live_representative, *KB_TOOLS],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
 )
 
@@ -1507,14 +1555,18 @@ def hps_instructions(
         )
     }
     
-    return instructions_map.get(language, instructions_map["english"]) + SCOPE_NOTE.get(language, SCOPE_NOTE["english"])
+    return (
+        instructions_map.get(language, instructions_map["english"])
+        + SCOPE_NOTE.get(language, SCOPE_NOTE["english"])
+        + (KB_NOTE.get(language, KB_NOTE["english"]) if KB_TOOLS else "")
+    )
 
 hps_agent = Agent[HousingAuthorityContext](
     name="HPS Agent",
     model=MAIN_MODEL,
     handoff_description="An agent to schedule HPS appointments and assist with housing program changes.",
     instructions=hps_instructions,
-    tools=[schedule_hps_appointment, request_income_reporting_form, extract_t_code, extract_contact_info, transfer_to_live_representative],
+    tools=[schedule_hps_appointment, request_income_reporting_form, extract_t_code, extract_contact_info, transfer_to_live_representative, *KB_TOOLS],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
 )
 
@@ -1533,8 +1585,8 @@ general_info_agent = Agent[HousingAuthorityContext](
     6. DIRECTIONS: Help with office locations and accessibility information
     
     Use the housing FAQ lookup tool for specific questions and the income limit research tool for questions about eligibility thresholds. Always provide accurate contact information.
-    If the request requires specialized help, transfer to the appropriate agent.""" + SCOPE_NOTE["english"],
-    tools=[housing_faq_lookup_tool, research_income_limits, get_language_instructions, transfer_to_live_representative],
+    If the request requires specialized help, transfer to the appropriate agent.""" + SCOPE_NOTE["english"] + (KB_NOTE["english"] if KB_TOOLS else ""),
+    tools=[housing_faq_lookup_tool, research_income_limits, get_language_instructions, transfer_to_live_representative, *KB_TOOLS],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
 )
 
@@ -1546,9 +1598,13 @@ triage_agent = Agent[HousingAuthorityContext](
         f"{RECOMMENDED_PROMPT_PREFIX} "
         "You are a helpful triaging agent for a housing authority. You can use your tools to delegate questions to other appropriate agents. "
         "This assistant is front-facing guidance only: it is not connected to Yardi or any case records, and cannot perform real scheduling. "
-        "If the user asks about their individual file or asks for a human, use the transfer_to_live_representative tool."
+        "If the user asks about their individual file or asks for a human, use the transfer_to_live_representative tool. "
+        "For policy or standards questions you answer yourself, you MUST ground the answer with the file_search knowledge base "
+        "(HACSM Admin Plan, NSPIRE standards, HUD HCV guidebook, California housing law) and mention the source document. "
+        "Prefer handing off: inspections/NSPIRE -> Inspection Agent, landlord/payments -> Landlord Services Agent, "
+        "income/appointments -> HPS Agent, hours/contacts/general -> General Information Agent."
     ),
-    tools=[transfer_to_live_representative],
+    tools=[transfer_to_live_representative, *KB_TOOLS],
     handoffs=[
         inspection_agent,
         landlord_services_agent,

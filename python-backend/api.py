@@ -401,7 +401,9 @@ async def chat_endpoint(req: ChatRequest):
                         )
             current_agent = item.target_agent
         elif isinstance(item, ToolCallItem):
-            tool_name = getattr(item.raw_item, "name", None)
+            tool_name = getattr(item.raw_item, "name", None) or getattr(item.raw_item, "type", "")
+            if tool_name == "file_search_call":
+                tool_name = "file_search (knowledge base)"
             raw_args = getattr(item.raw_item, "arguments", None)
             tool_args: Any = raw_args
             if isinstance(raw_args, str):
