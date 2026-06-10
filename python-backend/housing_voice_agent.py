@@ -7,6 +7,24 @@ the housing authority assistant for inspections, HPS appointments, and general i
 
 import os
 import logging
+import re as _re
+from xml.sax.saxutils import escape as _xml_escape
+
+
+def speech_safe(text: str, max_chars: int = 550) -> str:
+    """Make agent text safe and natural for TwiML <Say>: strip markdown/bullets,
+    collapse whitespace, trim to a sentence boundary, XML-escape."""
+    t = text or ""
+    t = _re.sub(r"[*_#`]", "", t)            # markdown
+    t = t.replace("\u2022", ", ")             # bullets -> pauses
+    t = _re.sub(r"\s*\n+\s*", ". ", t)        # newlines -> sentence breaks
+    t = _re.sub(r"\.\.+", ".", t)
+    t = _re.sub(r"\s{2,}", " ", t).strip()
+    if len(t) > max_chars:
+        cut = t[:max_chars]
+        idx = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+        t = cut[: idx + 1] if idx > 200 else cut + "..."
+    return _xml_escape(t)
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
@@ -299,7 +317,7 @@ class HousingVoiceAgent:
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Gather input="speech" action="{action_url}" method="POST" speechTimeout="auto" language="{twiml_language}">
-        <Say voice="{voice}">{prompt}</Say>
+        <Say voice="{voice}">{speech_safe(prompt)}</Say>
     </Gather>
     <Say voice="{voice}">I didn't hear anything. Goodbye.</Say>
 </Response>"""
@@ -321,7 +339,7 @@ class HousingVoiceAgent:
 
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="{voice}">{message}</Say>
+    <Say voice="{voice}">{speech_safe(message)}</Say>
     {hangup_tag}
 </Response>"""
 

@@ -222,7 +222,8 @@ async def chat_endpoint(req: ChatRequest):
     # Initialize or retrieve conversation state
     is_new = not req.conversation_id or conversation_store.get(req.conversation_id) is None
     if is_new:
-        conversation_id: str = uuid4().hex
+        # Keep a caller-supplied id (e.g. "voice-<CallSid>") so phone turns share state
+        conversation_id: str = req.conversation_id or uuid4().hex
         ctx = create_initial_context()
         current_agent_name = triage_agent.name
         state: Dict[str, Any] = {
@@ -764,10 +765,11 @@ async def twilio_process_speech(
     # Check if this is a transfer request
     if "transfer" in response_text.lower() and "representative" in response_text.lower():
         # Generate TwiML for transfer (Dial to the office number)
+        from housing_voice_agent import speech_safe
         office_number = os.getenv("HOUSING_OFFICE_PHONE", "+16501234567")
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="Polly.Joanna">{response_text}</Say>
+    <Say voice="Polly.Joanna">{speech_safe(response_text)}</Say>
     <Dial>{office_number}</Dial>
 </Response>"""
         return PlainTextResponse(content=twiml, media_type="application/xml")

@@ -54,6 +54,27 @@ Host the backend on a small Python host (Render, Fly.io, Railway, or a $5 VPS) a
 
 Point `api.yourdomain.com` (proxied/orange-cloud) at the host, deploy the frontend to Pages exactly as in Option A, and set `BACKEND_URL` the same way.
 
+## Taking live phone calls (Twilio number +1 571 626 7576)
+
+The backend already speaks TwiML; the number just needs to point at it.
+
+1. Expose the backend publicly (either tunnel works):
+   ```bash
+   ngrok http 8000                      # or: cloudflared tunnel --url http://localhost:8000
+   ```
+2. In `python-backend/.env`, set `WEBHOOK_BASE_URL=https://<your-tunnel-url>` and restart the backend.
+3. In the Twilio console -> Phone Numbers -> Active numbers -> your number -> Configure:
+
+   | Setting | Value |
+   | --- | --- |
+   | Voice: "A call comes in" | **POST** `https://<your-tunnel-url>/webhooks/voice/incoming` |
+   | Voice: "Call status changes" | **POST** `https://<your-tunnel-url>/webhooks/voice/status` |
+
+   (The current config points to an old ngrok URL with path `/webhook/voice` - note the path here is different: `/webhooks/voice/incoming`.)
+4. Call +1 571 626 7576. The triage flow answers, routes through the live agents, and says "transfer ... representative" requests get `<Dial>`ed to `HOUSING_OFFICE_PHONE`.
+
+Notes: the free ngrok URL changes on every restart - re-update both places. SMS is not implemented (the number's current `/webhook/sms` setting can be cleared). Phone voices use Twilio Polly (Joanna/Lupe); web chat uses the ElevenLabs voices.
+
 ## Pre-launch checklist (either option)
 
 - [ ] `ALLOWED_ORIGINS` env on the backend set to your Pages URL (only needed if you skip the rewrites and call the API cross-origin)
