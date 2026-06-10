@@ -11,9 +11,9 @@ import re as _re
 from xml.sax.saxutils import escape as _xml_escape
 
 
-def speech_safe(text: str, max_chars: int = 550) -> str:
-    """Make agent text safe and natural for TwiML <Say>: strip markdown/bullets,
-    collapse whitespace, trim to a sentence boundary, XML-escape."""
+def speech_clean(text: str, max_chars: int = 550) -> str:
+    """Make agent text natural for speech: strip markdown/bullets, collapse
+    whitespace, trim to a sentence boundary. (No XML escaping - for JSON use.)"""
     t = text or ""
     t = _re.sub(r"[*_#`]", "", t)            # markdown
     t = t.replace("\u2022", ", ")             # bullets -> pauses
@@ -24,7 +24,12 @@ def speech_safe(text: str, max_chars: int = 550) -> str:
         cut = t[:max_chars]
         idx = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
         t = cut[: idx + 1] if idx > 200 else cut + "..."
-    return _xml_escape(t)
+    return t
+
+
+def speech_safe(text: str, max_chars: int = 550) -> str:
+    """speech_clean + XML escaping, for use inside TwiML."""
+    return _xml_escape(speech_clean(text, max_chars))
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum

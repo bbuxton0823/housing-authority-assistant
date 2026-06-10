@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -434,6 +434,19 @@ async def chat_endpoint(req: ChatRequest):
                 )
             )
 
+    # If the live-representative transfer tool ran, deliver its message verbatim:
+    # models sometimes paraphrase away the contact info and transfer phrasing
+    # that the voice channel relies on to trigger the actual <Dial>.
+    for idx, ev in enumerate(events):
+        if ev.type == "tool_call" and ev.content == "transfer_to_live_representative":
+            for ev2 in events[idx + 1:]:
+                if ev2.type == "tool_output":
+                    transfer_text = str((ev2.metadata or {}).get("tool_result") or ev2.content or "")
+                    if transfer_text.strip():
+                        messages = [MessageResponse(content=transfer_text, agent=current_agent.name)]
+                    break
+            break
+
     new_context = state["context"].model_dump()
     changes = {k: new_context[k] for k in new_context if old_context.get(k) != new_context[k]}
     if changes:
@@ -677,7 +690,7 @@ async def voice_status():
 # Twilio Voice Webhooks
 # =========================
 
-from housing_voice_agent import housing_voice_agent, speech_safe as _speech_clean
+from housing_voice_agent import housing_voice_agent, speech_clean, speech_safe
 from fastapi.responses import PlainTextResponse, FileResponse
 import hashlib
 import re as _re
@@ -690,6 +703,15 @@ from pathlib import Path as _Path
 VOICE_CACHE_DIR = _Path(__file__).parent / "voice_cache"
 VOICE_CACHE_DIR.mkdir(exist_ok=True)
 PHONE_TTS = os.getenv("PHONE_TTS", "elevenlabs").lower()  # "elevenlabs" | "polly"
+
+# Phone call mode:
+#   "relay"  - Twilio ConversationRelay over WebSocket: streaming STT, ElevenLabs
+#              TTS rendered by Twilio, barge-in. Lowest latency. REQUIRES the
+#              account to have accepted Twilio's Predictive/Generative AI-ML
+#              Features Addendum (Voice -> Settings -> General).
+#   "gather" - classic <Gather>/<Play> flow (works on any account).
+PHONE_MODE = os.getenv("PHONE_MODE", "gather").lower()
+RELAY_VOICE_ID = os.getenv("RELAY_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Rachel
 
 
 def phone_tts_url(text: str, agent_type: str = "triage", language: str = "english") -> str | None:
@@ -734,13 +756,28 @@ async def twilio_incoming_call(
     Handle incoming Twilio voice calls.
     Returns TwiML to greet the caller and gather speech.
     """
-    logger.info(f"Incoming call: {CallSid} from {From}")
+    logger.info(f"Incoming call: {CallSid} from {From} (mode={PHONE_MODE})")
 
     # Create call context
     context = housing_voice_agent.get_or_create_call(CallSid, From)
 
     # Get welcome message
     welcome = housing_voice_agent.get_welcome_message(context.language)
+
+    if PHONE_MODE == "relay":
+        base = os.getenv("WEBHOOK_BASE_URL", "").strip().rstrip("/")
+        wss = base.replace("https://", "wss://").replace("http://", "ws://")
+        from xml.sax.saxutils import quoteattr
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Connect action="{base}/webhooks/voice/relay-action">
+        <ConversationRelay url="{wss}/webhooks/voice/relay"
+            ttsProvider="ElevenLabs" voice="{RELAY_VOICE_ID}"
+            welcomeGreeting={quoteattr(speech_clean(welcome))}
+            interruptible="speech" />
+    </Connect>
+</Response>"""
+        return PlainTextResponse(content=twiml, media_type="application/xml")
 
     # Generate TwiML to gather speech
     webhook_base = os.getenv("WEBHOOK_BASE_URL", "")
@@ -812,7 +849,7 @@ async def twilio_process_speech(
     if "transfer" in response_text.lower() and "representative" in response_text.lower():
         # Generate TwiML for transfer (Dial to the office number)
         from housing_voice_agent import speech_safe
-        office_number = os.getenv("HOUSING_OFFICE_PHONE", "+16501234567")
+        office_number = (os.getenv("HOUSING_OFFICE_PHONE", "").strip() or "+16501234567")
         twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="Polly.Joanna">{speech_safe(response_text)}</Say>
@@ -833,6 +870,89 @@ async def twilio_process_speech(
         audio_url=phone_tts_url(response_text, last_agent, context.language),
     )
 
+    return PlainTextResponse(content=twiml, media_type="application/xml")
+
+
+@app.websocket("/webhooks/voice/relay")
+async def conversation_relay(ws: WebSocket):
+    """
+    Twilio ConversationRelay WebSocket handler (lowest-latency phone mode).
+
+    Twilio streams the caller's speech as transcribed "prompt" messages; we run
+    the multi-agent backend and send back "text" tokens, which Twilio speaks
+    with ElevenLabs in real time (caller can interrupt mid-sentence).
+    """
+    await ws.accept()
+    call_sid = ""
+    try:
+        while True:
+            msg = await ws.receive_json()
+            mtype = msg.get("type", "")
+
+            if mtype == "setup":
+                call_sid = msg.get("callSid") or msg.get("sessionId") or "relay"
+                housing_voice_agent.get_or_create_call(call_sid, msg.get("from", ""))
+                logger.info(f"Relay setup for {call_sid}")
+
+            elif mtype == "prompt":
+                speech = (msg.get("voicePrompt") or "").strip()
+                if not speech:
+                    continue
+                logger.info(f"Relay prompt [{call_sid}]: {speech}")
+
+                # End-of-call intents
+                if speech.lower().rstrip(".!? ") in ("goodbye", "bye", "thank you", "thanks",
+                                                     "adios", "gracias"):
+                    ctx = housing_voice_agent.get_call(call_sid)
+                    bye = housing_voice_agent.get_goodbye_message(ctx.language if ctx else "english")
+                    await ws.send_json({"type": "text", "token": bye, "last": True})
+                    await ws.send_json({"type": "end"})
+                    continue
+
+                try:
+                    req = ChatRequest(message=speech, conversation_id=f"voice-{call_sid}")
+                    response = await chat_endpoint(req)
+                    text = response.messages[0].content if response.messages else \
+                        housing_voice_agent.get_error_message()
+                    ctx = housing_voice_agent.get_or_create_call(call_sid)
+                    ctx.collected_data["last_agent"] = response.current_agent
+                    ctx.add_message("user", speech)
+                    ctx.add_message("assistant", text)
+                except Exception as e:
+                    logger.error(f"Relay chat error: {e}")
+                    text = housing_voice_agent.get_error_message()
+
+                clean = speech_clean(text)
+                await ws.send_json({"type": "text", "token": clean, "last": True})
+
+                # Live-representative transfer -> end the relay session; the
+                # action webhook below answers with <Dial>.
+                if "transfer" in clean.lower() and "representative" in clean.lower():
+                    await ws.send_json({"type": "end",
+                                        "handoffData": json.dumps({"reason": "live-transfer"})})
+
+            elif mtype == "interrupt":
+                logger.info(f"Relay: caller interrupted [{call_sid}]")
+            elif mtype == "error":
+                logger.error(f"Relay error message: {msg}")
+    except WebSocketDisconnect:
+        logger.info(f"Relay disconnected [{call_sid}]")
+        if call_sid:
+            housing_voice_agent.end_call(call_sid)
+
+
+@app.post("/webhooks/voice/relay-action", response_class=PlainTextResponse)
+async def relay_action(HandoffData: str = Form(default=""), CallSid: str = Form(default="")):
+    """After a relay session ends: transfer to a live person if requested, else hang up."""
+    if "live-transfer" in (HandoffData or ""):
+        office_number = (os.getenv("HOUSING_OFFICE_PHONE", "").strip() or "+16501234567")
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Dial>{office_number}</Dial>
+</Response>"""
+    else:
+        twiml = """<?xml version="1.0" encoding="UTF-8"?>
+<Response><Hangup/></Response>"""
     return PlainTextResponse(content=twiml, media_type="application/xml")
 
 
