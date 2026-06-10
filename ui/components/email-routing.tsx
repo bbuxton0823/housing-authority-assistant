@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Mail } from "lucide-react";
 import { PanelSection } from "./panel-section";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
+
 interface TeamRoute {
   key: string;
   name: string;
@@ -27,7 +29,7 @@ export function EmailRouting() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/admin/routing")
+    fetch(`${API_BASE_URL}/admin/routing`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: RoutingConfig) => {
         setConfig(data);
@@ -43,7 +45,7 @@ export function EmailRouting() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/admin/routing", {
+      const res = await fetch(`${API_BASE_URL}/admin/routing`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ general_mailbox: generalMailbox, teams: teamEmails }),
