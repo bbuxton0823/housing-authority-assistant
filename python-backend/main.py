@@ -27,7 +27,18 @@ SCOPE_NOTE = {
         "dates, reason) so staff can follow up, and connect them with a live representative using the "
         "transfer_to_live_representative tool or by sharing the office contact info "
         f"({OFFICE_PHONE}, {OFFICE_EMAIL}). For ANY question about an individual's file, case, payment, or "
-        "application status, do not speculate - offer to connect them with a live representative."
+        "application status, do not speculate - offer to connect them with a live representative. "
+        "TEAM REFERRALS: when a question needs follow-up from a specific team, use submit_team_referral. "
+        "Routing guide: lease-up, new leases, rent increases, landlord/unit changes -> leasing; "
+        "project-based voucher (PBV) properties and waitlists -> project_based; "
+        "Family Self-Sufficiency program, escrow, FSS enrollment -> fss; "
+        "moving the voucher to/from another housing authority -> portability; "
+        "other voucher questions (HCV general, special vouchers: EHV, VASH, Mainstream) -> voucher_other; "
+        "affordable housing development, county housing programs outside vouchers -> hcd. "
+        "Before submitting you MUST have the caller's name AND an email or phone number for follow-up - "
+        "ask for them if you don't have them yet. Summarize their question clearly in the referral. "
+        "T-CODE TIP: whenever you ask for a T-code, tell the caller they can find it in the top right-hand "
+        "corner of any letter the Housing Authority (PHA) has mailed them; if they cannot find it, continue without it."
     ),
     "spanish": (
         "\n\nLIMITES IMPORTANTES: Eres solo una guia de atencion inicial. NO tienes acceso a Yardi, "
@@ -36,13 +47,18 @@ SCOPE_NOTE = {
         "ni horarios. SI PUEDES: responder preguntas generales sobre HUD/Seccion 8/HQS, explicar procesos y "
         "requisitos, recopilar los detalles de la solicitud para que el personal haga seguimiento, y conectar "
         f"a la persona con un representante en vivo ({OFFICE_PHONE}, {OFFICE_EMAIL}). Para preguntas sobre un "
-        "expediente individual, ofrece conectar con un representante."
+        "expediente individual, ofrece conectar con un representante. "
+        "REFERENCIAS A EQUIPOS: cuando una pregunta necesite seguimiento de un equipo específico (leasing, project_based, "
+        "fss, portability, voucher_other, hcd), usa submit_team_referral. Antes de enviar DEBES tener el nombre de la persona "
+        "Y un correo o teléfono de contacto - pídelos si no los tienes."
     ),
     "mandarin": (
         "\n\n重要范围限制：您只是前台引导助手。您无法访问Yardi、租户档案或任何日程系统。您不能自行确认、预订、更改或取消任何事项，"
         "也绝不能编造确认号、检查ID、工作人员姓名或预约时间。您可以：回答关于HUD/第8节/HQS的一般问题，解释流程和要求，"
         f"收集来电者的请求详情以便工作人员跟进，并将他们转接给真人代表（电话{OFFICE_PHONE}，邮箱{OFFICE_EMAIL}）。"
         "关于个人档案、案件或申请状态的任何问题，请提议转接真人代表。"
+        "团队转介：当问题需要特定团队跟进时（leasing租赁、project_based项目制、fss、portability可携带性、voucher_other、hcd），"
+        "请使用submit_team_referral。提交前必须获得来电者的姓名以及电子邮箱或电话号码——如果还没有，请先询问。"
     ),
 }
 
@@ -58,6 +74,8 @@ from agents import (
     input_guardrail,
 )
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
+
+from referrals import TEAMS, normalize_team, submit_referral
 
 # Knowledge base (RAG): an OpenAI vector store holding PUBLIC documents only -
 # HUD HCV guidebook chapters, NSPIRE inspection standards, the HACSM
@@ -149,9 +167,9 @@ def get_multilingual_response(message_key: str, language: str, **kwargs) -> str:
             "mandarin": "您好！今天我如何为您提供住房管理局服务方面的帮助？"
         },
         "need_tcode": {
-            "english": "Could you please provide your T-code or contact information so I can assist you better?",
-            "spanish": "¿Podría proporcionar su código T o información de contacto para poder ayudarle mejor?",
-            "mandarin": "请您提供T代码或联系信息，以便我更好地为您提供帮助？"
+            "english": "Could you please provide your T-code or contact information so I can assist you better? Your T-code is printed in the top right-hand corner of any letter the Housing Authority has sent you.",
+            "spanish": "¿Podría proporcionar su código T o información de contacto para poder ayudarle mejor? Su código T aparece en la esquina superior derecha de cualquier carta que la Autoridad de Vivienda le haya enviado.",
+            "mandarin": "请您提供T代码或联系信息，以便我更好地为您提供帮助？您的T代码印在住房管理局寄给您的任何信件的右上角。"
         },
         "inspection_scheduled": {
             "english": "Your inspection has been scheduled for {date} at {time}.",
@@ -417,6 +435,105 @@ async def update_tenant_info(
     return responses.get(language, responses["english"])
 
 @function_tool(
+    name_override="submit_team_referral",
+    description_override=(
+        "Route the caller's question to the right team for follow-up by email. "
+        "Teams: leasing, project_based (PBV), fss (FSS Coordinator), portability, voucher_other, hcd. "
+        "REQUIRED before calling: the caller's name AND at least one of email or phone. "
+        "If you don't have them yet, ask the caller first. Include a clear summary of their question."
+    )
+)
+async def submit_team_referral(
+    context: RunContextWrapper[HousingAuthorityContext],
+    team: str,
+    question_summary: str,
+    name: str = "",
+    email: str = "",
+    phone: str = "",
+    t_code: str = "",
+) -> str:
+    """Validate required contact info and route a referral email to the appropriate team."""
+    language = getattr(context.context, 'language', 'english')
+
+    # Fall back to anything already collected in this conversation
+    name = (name or getattr(context.context, 'participant_name', None) or "").strip()
+    t_code = (t_code or getattr(context.context, 't_code', None) or "").strip()
+    if t_code:
+        context.context.t_code = t_code
+    email = (email or getattr(context.context, 'email', None) or "").strip()
+    phone = (phone or getattr(context.context, 'phone_number', None) or "").strip()
+
+    team_key = normalize_team(team)
+    if not team_key:
+        valid = ", ".join(TEAMS)
+        return f"Unknown team '{team}'. Valid teams: {valid}. Pick the closest match and call this tool again."
+
+    # Enforce: name + (email or phone)
+    missing = []
+    if not name:
+        missing.append({"english": "full name", "spanish": "nombre completo", "mandarin": "全名"}[language if language in ("english","spanish","mandarin") else "english"])
+    if not email and not phone:
+        missing.append({"english": "an email address or phone number", "spanish": "un correo electrónico o número de teléfono", "mandarin": "电子邮箱或电话号码"}[language if language in ("english","spanish","mandarin") else "english"])
+    if missing:
+        needs = " + ".join(missing)
+        prompts = {
+            "english": f"MISSING REQUIRED INFO - do not submit yet. Ask the caller for: {needs}. Then call this tool again with the complete information.",
+            "spanish": f"FALTA INFORMACIÓN REQUERIDA - no envíe todavía. Pida a la persona: {needs}. Luego llame a esta herramienta de nuevo con la información completa.",
+            "mandarin": f"缺少必填信息 - 请勿提交。请向来电者询问：{needs}。然后用完整信息再次调用此工具。",
+        }
+        return prompts.get(language, prompts["english"])
+
+    # Store contact info in context for the agent panel
+    context.context.participant_name = name
+    if email:
+        context.context.email = email
+    if phone:
+        context.context.phone_number = phone
+
+    delivered, status = submit_referral(
+        team_key,
+        name=name,
+        email=email,
+        phone=phone,
+        question=question_summary,
+        t_code=t_code,
+        language=language,
+        conversation_id=getattr(context.context, 'account_number', None) or "",
+    )
+
+    team_name = TEAMS[team_key][0]
+    responses = {
+        "english": (
+            f"Your question has been routed to the {team_name}:\n\n"
+            f"\u2022 Name: {name}\n"
+            + (f"\u2022 Email: {email}\n" if email else "")
+            + (f"\u2022 Phone: {phone}\n" if phone else "")
+            + f"\u2022 Request: {question_summary}\n\n"
+            f"Someone from the {team_name} will follow up with you, typically within 2 business days. "
+            f"If it's urgent, call {OFFICE_PHONE} (Monday-Friday, 8:00 AM - 5:00 PM)."
+        ),
+        "spanish": (
+            f"Su pregunta ha sido enviada al equipo: {team_name}:\n\n"
+            f"\u2022 Nombre: {name}\n"
+            + (f"\u2022 Correo: {email}\n" if email else "")
+            + (f"\u2022 Teléfono: {phone}\n" if phone else "")
+            + f"\u2022 Solicitud: {question_summary}\n\n"
+            f"Alguien del equipo le dará seguimiento, normalmente dentro de 2 días hábiles. "
+            f"Si es urgente, llame al {OFFICE_PHONE} (lunes a viernes, 8:00 AM - 5:00 PM)."
+        ),
+        "mandarin": (
+            f"您的问题已转送至{team_name}：\n\n"
+            f"\u2022 姓名：{name}\n"
+            + (f"\u2022 邮箱：{email}\n" if email else "")
+            + (f"\u2022 电话：{phone}\n" if phone else "")
+            + f"\u2022 请求：{question_summary}\n\n"
+            f"{team_name}的工作人员将跟进您的请求，通常在2个工作日内。"
+            f"如有紧急情况，请致电{OFFICE_PHONE}（周一至周五，上午8:00 - 下午5:00）。"
+        ),
+    }
+    return responses.get(language, responses["english"])
+
+@function_tool(
     name_override="transfer_to_live_representative",
     description_override="Connect the user with a live housing authority representative. Use for any case-specific question, or when the user asks for a human."
 )
@@ -506,9 +623,9 @@ async def extract_t_code(
     # No T-code found
     language = getattr(context.context, 'language', 'english')
     responses = {
-        "english": "No T-code detected in message.",
-        "spanish": "No se detectó código T en el mensaje.",
-        "mandarin": "消息中未检测到T代码。"
+        "english": "No T-code detected in message. TIP FOR THE CALLER: the T-code is printed in the top right-hand corner of any letter from the Housing Authority (PHA).",
+        "spanish": "No se detectó código T en el mensaje. CONSEJO: el código T aparece en la esquina superior derecha de cualquier carta de la Autoridad de Vivienda (PHA).",
+        "mandarin": "消息中未检测到T代码。提示：T代码印在住房管理局(PHA)寄出的任何信件的右上角。"
     }
     
     return responses.get(language, responses["english"])
@@ -1104,6 +1221,9 @@ guardrail_agent = Agent(
         "appointment-related responses ('I'm sick', 'I have work', 'emergency', 'not available', 'need different date'). "
         "Important: You are ONLY evaluating the most recent user message, not previous chat history. "
         "It is OK for conversational messages like 'Hi', 'Thank you', 'OK', or general greetings. "
+        "ALWAYS ALLOW messages that provide the caller's own contact or identification details - name, phone number, "
+        "email address, T-code, unit address - even if that is ALL the message contains, since the assistant asks for "
+        "these to route follow-up requests. "
         "ANY question about unit conditions, repairs, appliances, safety features, or inspection requirements should be ALLOWED. "
         "ALWAYS ALLOW responses that provide reasons for rescheduling appointments or inspections. "
         "BLOCKED topics include: personal finance advice unrelated to housing, legal advice beyond "
@@ -1334,6 +1454,7 @@ inspection_agent = Agent[HousingAuthorityContext](
         extract_contact_info,
         get_language_instructions,
         transfer_to_live_representative,
+        submit_team_referral,
         *KB_TOOLS
     ],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
@@ -1444,7 +1565,7 @@ landlord_services_agent = Agent[HousingAuthorityContext](
     model=MAIN_MODEL,
     handoff_description="An agent to assist landlords with Section 8 documentation and payment changes.",
     instructions=landlord_services_instructions,
-    tools=[update_payment_method, request_landlord_forms, housing_faq_lookup_tool, extract_contact_info, transfer_to_live_representative, *KB_TOOLS],
+    tools=[update_payment_method, request_landlord_forms, housing_faq_lookup_tool, extract_contact_info, transfer_to_live_representative, submit_team_referral, *KB_TOOLS],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
 )
 
@@ -1566,7 +1687,7 @@ hps_agent = Agent[HousingAuthorityContext](
     model=MAIN_MODEL,
     handoff_description="An agent to schedule HPS appointments and assist with housing program changes.",
     instructions=hps_instructions,
-    tools=[schedule_hps_appointment, request_income_reporting_form, extract_t_code, extract_contact_info, transfer_to_live_representative, *KB_TOOLS],
+    tools=[schedule_hps_appointment, request_income_reporting_form, extract_t_code, extract_contact_info, transfer_to_live_representative, submit_team_referral, *KB_TOOLS],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
 )
 
@@ -1586,7 +1707,7 @@ general_info_agent = Agent[HousingAuthorityContext](
     
     Use the housing FAQ lookup tool for specific questions and the income limit research tool for questions about eligibility thresholds. Always provide accurate contact information.
     If the request requires specialized help, transfer to the appropriate agent.""" + SCOPE_NOTE["english"] + (KB_NOTE["english"] if KB_TOOLS else ""),
-    tools=[housing_faq_lookup_tool, research_income_limits, get_language_instructions, transfer_to_live_representative, *KB_TOOLS],
+    tools=[housing_faq_lookup_tool, research_income_limits, get_language_instructions, transfer_to_live_representative, submit_team_referral, *KB_TOOLS],
     input_guardrails=[relevance_guardrail, jailbreak_guardrail, data_privacy_guardrail, authority_limitation_guardrail, language_support_guardrail],
 )
 
@@ -1604,7 +1725,7 @@ triage_agent = Agent[HousingAuthorityContext](
         "Prefer handing off: inspections/NSPIRE -> Inspection Agent, landlord/payments -> Landlord Services Agent, "
         "income/appointments -> HPS Agent, hours/contacts/general -> General Information Agent."
     ),
-    tools=[transfer_to_live_representative, *KB_TOOLS],
+    tools=[transfer_to_live_representative, submit_team_referral, *KB_TOOLS],
     handoffs=[
         inspection_agent,
         landlord_services_agent,

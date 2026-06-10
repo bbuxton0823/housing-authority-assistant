@@ -21,7 +21,8 @@ The assistant may *collect* limited contact details a caller volunteers so staff
 
 - lives only in the per-conversation context (in-memory) and the local `conversation_logs.jsonl`
 - is never used to look anything up — the assistant has no retrieval path into tenant systems
-- is forwarded one-way to staff (when an intake integration is added)
+- is forwarded one-way to staff via the team referral email (`submit_team_referral` -> tagged email to the general mailbox, or `referrals_outbox.jsonl` when SMTP is unconfigured). Referral emails contain only: name, contact info, T-code if volunteered, language, and the question summary - never anything retrieved from agency systems
+- `referrals_outbox.jsonl` is an audit trail of all referrals; treat it with the same controls as `conversation_logs.jsonl` (gitignored, retention window, controlled access)
 
 ### Tier 3 — Systems of record (NO access, by design)
 The assistant has **no connection** to Yardi, waitlist systems, payment ledgers, case files, or any database containing participant PII. This is enforced structurally, not just by prompt: there are no credentials, no API clients, and no tools in the codebase that reach those systems. Questions about an individual's file are answered with "I can't see your file" plus a warm transfer to a live representative.

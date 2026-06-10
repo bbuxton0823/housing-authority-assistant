@@ -184,6 +184,18 @@ python build_rag.py
 
 Public documents only — see `docs/DATA_ACCESS_POLICY.md` for the access and PII rules.
 
+#### Team referral routing (email)
+When a question needs a specific team (Leasing, Project-Based, FSS Coordinator, Portability, Voucher/Other, HCD), the assistant collects the caller's name + email/phone and emails a tagged referral (`[Referral][Team]`) to your general mailbox for filtering. Configure in `python-backend/.env`:
+
+```bash
+REFERRAL_MAILBOX=hcvinbox@yourpha.org
+SMTP_HOST=smtp.office365.com
+SMTP_USER=noreply@yourpha.org
+SMTP_PASSWORD=...
+```
+
+Until SMTP is configured, referrals queue locally in `python-backend/referrals_outbox.jsonl` so nothing is lost.
+
 #### Optional: voice support
 Add to `.env` for spoken replies and voice input:
 
