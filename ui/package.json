@@ -1,10 +1,10 @@
 {
-  "name": "ai-travel-assistant",
+  "name": "housing-authority-assistant",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev:next": "npx next dev",
-    "dev:server": "cd ../python-backend && python start_simple_server.py",
+    "dev:server": "cd ../python-backend && python -m uvicorn api:app --reload --port 8000",
     "dev": "concurrently \"npm run dev:next\" \"npm run dev:server\"",
     "build": "next build",
     "start": "next start",

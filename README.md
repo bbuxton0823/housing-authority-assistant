@@ -1,6 +1,6 @@
-# AI Travel Assistant
+# Housing Authority Assistant
 
-A comprehensive multi-agent travel planning platform powered by CrewAI, featuring intelligent flight and train booking, weather forecasting, and multi-modal communication (web, voice, SMS).
+A multi-agent housing authority customer-service platform built on the **OpenAI Agents SDK**, with a FastAPI backend and a Next.js dual-panel UI (agent orchestration view + customer chat). Supports HQS inspection scheduling, Section 8 landlord services, HPS appointments, and general housing questions in English, Spanish, and Mandarin — with optional voice (ElevenLabs TTS + Whisper STT) and Twilio phone integration.
 
 ## 🖥️ Interface Overview
 
@@ -174,18 +174,12 @@ cp .env.example .env
 # OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-#### 🍎 Mac Setup (Recommended)
-Mac users may experience Unicode copy/paste issues with API keys. Use our Mac-friendly setup:
+#### Optional: voice support
+Add to `.env` for spoken replies and voice input:
 
 ```bash
-# Interactive API key setup with automatic Unicode fixing
-python set_api_key.py
-
-# Test your setup
-python test_api_key.py
-
-# Alternative: Start server with bypass for .env issues
-python start_server.py
+ELEVENLABS_API_KEY=your_elevenlabs_key   # text-to-speech
+# Whisper transcription uses your OPENAI_API_KEY automatically
 ```
 
 ### 3. Frontend Setup

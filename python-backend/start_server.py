@@ -17,16 +17,8 @@ def start_server():
         print("   Or add it to your .env file")
         print()
 
-    # Set environment variables
     env = os.environ.copy()
-    env['OPENAI_MODEL'] = 'gpt-4-turbo-preview'
-    env['OPENAI_MAX_TOKENS'] = '2000'
-    env['OPENAI_TEMPERATURE'] = '0.7'
-    env['API_HOST'] = '127.0.0.1'
-    env['API_PORT'] = '8000'
-    env['LOG_LEVEL'] = 'INFO'
-    env['ENVIRONMENT'] = 'development'
-    
+
     print("🚀 Starting Housing Authority Assistant server...")
     print(f"✅ API Key loaded: {len(api_key)} characters")
     print(f"✅ Server will run on: http://localhost:8000")

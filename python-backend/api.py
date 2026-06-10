@@ -18,23 +18,20 @@ load_dotenv()
 from safe_openai_fix import apply_safe_fix
 apply_safe_fix()
 
-# Configure Opik for local instance
-import opik
-import os
-
-# Set a local API key for development
-os.environ['OPIK_API_KEY'] = 'local-dev-key-housing-authority'
-
-try:
-    opik.configure(
-        url="http://localhost:8080",
-        workspace="housing-authority-assistant"
-    )
-    OPIK_ENABLED = True
-    print("✅ Opik configured successfully")
-except Exception as e:
-    print(f"⚠️ Opik configuration failed: {e}")
-    OPIK_ENABLED = False
+# Optional Opik observability (disabled unless OPIK_ENABLE=true and a local
+# Opik instance is running -- see https://github.com/comet-ml/opik)
+OPIK_ENABLED = False
+if os.getenv("OPIK_ENABLE", "").lower() in ("1", "true", "yes"):
+    try:
+        import opik
+        opik.configure(
+            url=os.getenv("OPIK_URL", "http://localhost:8080"),
+            workspace=os.getenv("OPIK_WORKSPACE", "housing-authority-assistant"),
+        )
+        OPIK_ENABLED = True
+        print("✅ Opik configured successfully")
+    except Exception as e:
+        print(f"⚠️ Opik configuration failed (continuing without it): {e}")
 
 # Simple monitoring helper
 import json
@@ -77,9 +74,13 @@ from agents import (
 # Voice service
 from voice_service import voice_service
 
-# OpenAI client for Whisper transcription
+# OpenAI client for Whisper transcription (created lazily so the server
+# can still boot in degraded mode when OPENAI_API_KEY is not set)
 import openai
-openai_client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+
+def get_openai_client() -> "openai.OpenAI | None":
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    return openai.OpenAI(api_key=key) if key else None
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -216,19 +217,7 @@ async def chat_endpoint(req: ChatRequest):
     Main chat endpoint for agent orchestration.
     Handles conversation state, agent routing, and guardrail checks.
     """
-    
-    # Start Opik tracing if enabled
-    if OPIK_ENABLED:
-        try:
-            with opik.track(
-                name="Housing Authority Chat",
-                input={"message": req.message, "conversation_id": req.conversation_id},
-                metadata={"system": "housing-authority-assistant"}
-            ) as trace:
-                pass  # Context manager will handle trace creation
-        except Exception as e:
-            logger.warning(f"Opik tracing failed: {e}")
-    
+
     # Initialize or retrieve conversation state
     is_new = not req.conversation_id or conversation_store.get(req.conversation_id) is None
     if is_new:
@@ -284,21 +273,8 @@ async def chat_endpoint(req: ChatRequest):
                 guardrails=[],
             )
 
-        # Execute agent with optional Opik tracking
-        if OPIK_ENABLED:
-            try:
-                with opik.track(
-                    name=f"Agent: {current_agent.name}",
-                    input={"message": req.message, "agent": current_agent.name},
-                    metadata={"agent_type": current_agent.name, "conversation_id": conversation_id}
-                ) as agent_span:
-                    result = await Runner.run(current_agent, state["input_items"], context=state["context"])
-                    agent_span.update(output={"status": "completed"})
-            except Exception as opik_error:
-                logger.warning(f"Opik agent tracking failed: {opik_error}")
-                result = await Runner.run(current_agent, state["input_items"], context=state["context"])
-        else:
-            result = await Runner.run(current_agent, state["input_items"], context=state["context"])
+        # Execute agent
+        result = await Runner.run(current_agent, state["input_items"], context=state["context"])
 
     except InputGuardrailTripwireTriggered as e:
         failed = e.guardrail_result.guardrail
@@ -330,19 +306,6 @@ async def chat_endpoint(req: ChatRequest):
             agent_name=current_agent.name,
             guardrails_status={"failed": _get_guardrail_name(failed), "passed": []}
         )
-        
-        # Track guardrail failure in Opik if enabled
-        if OPIK_ENABLED:
-            try:
-                with opik.track(
-                    name="Guardrail Failure",
-                    input={"message": req.message, "guardrail": _get_guardrail_name(failed)},
-                    output={"guardrail_triggered": _get_guardrail_name(failed), "refusal": refusal},
-                    tags=["guardrail_failure"]
-                ):
-                    pass
-            except Exception as e:
-                logger.warning(f"Opik guardrail tracking failed: {e}")
         
         return ChatResponse(
             conversation_id=conversation_id,
@@ -456,14 +419,6 @@ async def chat_endpoint(req: ChatRequest):
                     metadata={"tool_args": tool_args},
                 )
             )
-            # If the tool is display_seat_map, send a special message so the UI can render the seat selector.
-            if tool_name == "display_seat_map":
-                messages.append(
-                    MessageResponse(
-                        content="DISPLAY_SEAT_MAP",
-                        agent=item.agent.name,
-                    )
-                )
         elif isinstance(item, ToolCallOutputItem):
             events.append(
                 AgentEvent(
@@ -521,25 +476,6 @@ async def chat_endpoint(req: ChatRequest):
         agent_name=current_agent.name,
         guardrails_status={"passed": guardrails_passed, "failed": guardrails_failed}
     )
-    
-    # Track successful response in Opik if enabled
-    if OPIK_ENABLED:
-        try:
-            with opik.track(
-                name="Successful Response",
-                input={"message": req.message, "conversation_id": conversation_id},
-                output={"messages": response_content, "agent": current_agent.name},
-                tags=["success"],
-                metadata={
-                    "conversation_id": conversation_id,
-                    "final_agent": current_agent.name,
-                    "guardrails_passed": len([g for g in final_guardrails if g.passed]),
-                    "guardrails_failed": len([g for g in final_guardrails if not g.passed])
-                }
-            ):
-                pass
-        except Exception as e:
-            logger.warning(f"Opik success tracking failed: {e}")
     
     return ChatResponse(
         conversation_id=conversation_id,
@@ -655,6 +591,7 @@ async def voice_transcribe(
 
         try:
             # Transcribe with Whisper
+            openai_client = get_openai_client()
             with open(tmp_path, "rb") as audio_file:
                 transcription = openai_client.audio.transcriptions.create(
                     model="whisper-1",

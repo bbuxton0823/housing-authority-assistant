@@ -16,13 +16,25 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Try to import elevenlabs, gracefully handle if not available
+# Try to import elevenlabs, gracefully handle if not available.
+# Supports both the modern SDK (>= 1.0, client-based) and the legacy 0.x SDK.
+ELEVENLABS_MODE = None
 try:
-    from elevenlabs import generate, Voice, VoiceSettings, set_api_key
+    from elevenlabs.client import ElevenLabs  # SDK >= 1.0
+    try:
+        from elevenlabs import VoiceSettings  # available in 1.x
+    except ImportError:
+        VoiceSettings = None
+    ELEVENLABS_MODE = "v1"
     ELEVENLABS_AVAILABLE = True
 except ImportError:
-    ELEVENLABS_AVAILABLE = False
-    logger.warning("ElevenLabs not installed. Voice synthesis will be unavailable.")
+    try:
+        from elevenlabs import generate, Voice, VoiceSettings, set_api_key  # SDK 0.x
+        ELEVENLABS_MODE = "v0"
+        ELEVENLABS_AVAILABLE = True
+    except ImportError:
+        ELEVENLABS_AVAILABLE = False
+        logger.warning("ElevenLabs not installed. Voice synthesis will be unavailable.")
 
 
 class HousingVoiceService:
@@ -32,10 +44,14 @@ class HousingVoiceService:
         self.api_key = os.getenv("ELEVENLABS_API_KEY", "")
         self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Rachel
 
+        self._client = None
         if self.api_key and ELEVENLABS_AVAILABLE:
-            set_api_key(self.api_key)
+            if ELEVENLABS_MODE == "v1":
+                self._client = ElevenLabs(api_key=self.api_key)
+            else:
+                set_api_key(self.api_key)
             self.enabled = True
-            logger.info("ElevenLabs voice service initialized")
+            logger.info(f"ElevenLabs voice service initialized (SDK mode: {ELEVENLABS_MODE})")
         else:
             self.enabled = False
             if not self.api_key:
@@ -112,19 +128,36 @@ class HousingVoiceService:
             settings = self.agent_settings.get(agent_type, self.agent_settings["triage"])
 
             # Generate audio
-            audio = generate(
-                text=optimized_text,
-                voice=Voice(
-                    voice_id=self.voice_id,
-                    settings=VoiceSettings(
+            model_id = "eleven_multilingual_v2" if language != "english" else "eleven_monolingual_v1"
+            if ELEVENLABS_MODE == "v1":
+                voice_settings = None
+                if VoiceSettings is not None:
+                    voice_settings = VoiceSettings(
                         stability=settings["stability"],
                         similarity_boost=settings["similarity_boost"],
                         style=settings["style"],
-                        use_speaker_boost=True
+                        use_speaker_boost=True,
                     )
-                ),
-                model="eleven_multilingual_v2" if language != "english" else "eleven_monolingual_v1"
-            )
+                audio = self._client.text_to_speech.convert(
+                    voice_id=self.voice_id,
+                    text=optimized_text,
+                    model_id=model_id,
+                    voice_settings=voice_settings,
+                )
+            else:
+                audio = generate(
+                    text=optimized_text,
+                    voice=Voice(
+                        voice_id=self.voice_id,
+                        settings=VoiceSettings(
+                            stability=settings["stability"],
+                            similarity_boost=settings["similarity_boost"],
+                            style=settings["style"],
+                            use_speaker_boost=True
+                        )
+                    ),
+                    model=model_id
+                )
 
             # Convert generator to bytes if needed
             if hasattr(audio, '__iter__') and not isinstance(audio, bytes):

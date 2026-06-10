@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Travel Assistant",
-  description: "Your intelligent travel companion for flights, trains, and more",
+  title: "Housing Authority Assistant",
+  description: "Multi-agent assistant for HQS inspections, Section 8 services, HPS appointments, and general housing questions",
   icons: {
     icon: "/openai_logo.svg",
   },

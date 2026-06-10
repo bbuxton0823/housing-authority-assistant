@@ -2,9 +2,6 @@ from __future__ import annotations as _annotations
 
 import random
 from pydantic import BaseModel
-import string
-import httpx
-import json
 
 from agents import (
     Agent,
@@ -40,6 +37,8 @@ class HousingAuthorityContext(BaseModel):
     inspection_date: str | None = None
     inspector_name: str | None = None
     door_codes: str | None = None
+    reschedule_reason: str | None = None
+    requested_reschedule_date: str | None = None
     
     # Landlord specific
     payment_method: str | None = None
@@ -969,47 +968,6 @@ La inspección típicamente toma 30-60 minutos. Usted o un representante adulto 
     }
     
     return requirements.get(language, requirements["english"])
-
-@function_tool(
-    name_override="flight_status_tool",
-    description_override="Lookup status for a flight."
-)
-async def flight_status_tool(flight_number: str) -> str:
-    """Lookup the status for a flight."""
-    return f"Flight {flight_number} is on time and scheduled to depart at gate A10."
-
-@function_tool(
-    name_override="baggage_tool",
-    description_override="Lookup baggage allowance and fees."
-)
-async def baggage_tool(query: str) -> str:
-    """Lookup baggage allowance and fees."""
-    q = query.lower()
-    if "fee" in q:
-        return "Overweight bag fee is $75."
-    if "allowance" in q:
-        return "One carry-on and one checked bag (up to 50 lbs) are included."
-    return "Please provide details about your baggage inquiry."
-
-@function_tool(
-    name_override="display_seat_map",
-    description_override="Display an interactive seat map to the customer so they can choose a new seat."
-)
-async def display_seat_map(
-    context: RunContextWrapper[HousingAuthorityContext]
-) -> str:
-    """Trigger the UI to show an interactive seat map to the customer."""
-    # The returned string will be interpreted by the UI to open the seat selector.
-    return "DISPLAY_SEAT_MAP"
-
-# =========================
-# HOOKS
-# =========================
-
-async def on_seat_booking_handoff(context: RunContextWrapper[HousingAuthorityContext]) -> None:
-    """Set a random flight number when handed off to the seat booking agent."""
-    context.context.flight_number = f"FLT-{random.randint(100, 999)}"
-    context.context.confirmation_number = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
 # =========================
 # GUARDRAILS

@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import type { Message } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
-import { SeatMap } from "./seat-map";
 import { VoiceControls } from "./voice-controls";
 
 interface ChatProps {
@@ -21,7 +20,7 @@ export function Chat({ messages, onSendMessage, isLoading, currentAgent = "triag
 
   // Get last assistant message for voice playback
   const lastAssistantMessage = messages
-    .filter((m) => m.role === "assistant" && m.content !== "DISPLAY_SEAT_MAP")
+    .filter((m) => m.role === "assistant")
     .pop()?.content;
 
   // Handle voice transcription
@@ -32,39 +31,17 @@ export function Chat({ messages, onSendMessage, isLoading, currentAgent = "triag
     [onSendMessage]
   );
   const [isComposing, setIsComposing] = useState(false);
-  const [showSeatMap, setShowSeatMap] = useState(false);
-  const [selectedSeat, setSelectedSeat] = useState<string | undefined>(undefined);
 
   // Auto-scroll to bottom when messages or loading indicator change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
   }, [messages, isLoading]);
 
-  // Watch for special seat map trigger message (anywhere in list) and only if a seat has not been picked yet
-  useEffect(() => {
-    const hasTrigger = messages.some(
-      (m) => m.role === "assistant" && m.content === "DISPLAY_SEAT_MAP"
-    );
-    // Show map if trigger exists and seat not chosen yet
-    if (hasTrigger && !selectedSeat) {
-      setShowSeatMap(true);
-    }
-  }, [messages, selectedSeat]);
-
   const handleSend = useCallback(() => {
     if (!inputText.trim()) return;
     onSendMessage(inputText);
     setInputText("");
   }, [inputText, onSendMessage]);
-
-  const handleSeatSelect = useCallback(
-    (seat: string) => {
-      setSelectedSeat(seat);
-      setShowSeatMap(false);
-      onSendMessage(`I would like seat ${seat}`);
-    },
-    [onSendMessage]
-  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -86,7 +63,6 @@ export function Chat({ messages, onSendMessage, isLoading, currentAgent = "triag
       {/* Messages */}
       <div className="flex-1 overflow-y-auto min-h-0 md:px-4 pt-4 pb-20">
         {messages.map((msg, idx) => {
-          if (msg.content === "DISPLAY_SEAT_MAP") return null; // Skip rendering marker message
           return (
             <div
               key={idx}
@@ -105,16 +81,6 @@ export function Chat({ messages, onSendMessage, isLoading, currentAgent = "triag
             </div>
           );
         })}
-        {showSeatMap && (
-          <div className="flex justify-start mb-5">
-            <div className="mr-4 rounded-[16px] rounded-bl-[4px] md:mr-24">
-              <SeatMap
-                onSeatSelect={handleSeatSelect}
-                selectedSeat={selectedSeat}
-              />
-            </div>
-          </div>
-        )}
         {isLoading && (
           <div className="flex mb-5 text-sm justify-start">
             <div className="h-3 w-3 bg-black rounded-full animate-pulse" />

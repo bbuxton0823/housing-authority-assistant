@@ -40,7 +40,7 @@ export function VoiceControls({
 
   // Auto-play assistant responses if enabled
   useEffect(() => {
-    if (autoPlayResponses && lastAssistantMessage && lastAssistantMessage !== "DISPLAY_SEAT_MAP") {
+    if (autoPlayResponses && lastAssistantMessage) {
       playAssistantResponse(lastAssistantMessage);
     }
   }, [lastAssistantMessage, autoPlayResponses]);

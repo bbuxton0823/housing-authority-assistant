@@ -9,26 +9,19 @@ const nextConfig = {
   },
   // Proxy API requests to the backend server
   async rewrites() {
+    const backend = process.env.BACKEND_URL || "http://127.0.0.1:8000";
     return [
       {
         source: "/chat",
-        destination: "http://127.0.0.1:8000/chat",
+        destination: `${backend}/chat`,
       },
       {
-        source: "/search/:path*",
-        destination: "http://127.0.0.1:8000/search/:path*",
-      },
-      {
-        source: "/weather/:path*",
-        destination: "http://127.0.0.1:8000/weather/:path*",
-      },
-      {
-        source: "/booking",
-        destination: "http://127.0.0.1:8000/booking",
+        source: "/voice/:path*",
+        destination: `${backend}/voice/:path*`,
       },
       {
         source: "/health",
-        destination: "http://127.0.0.1:8000/health",
+        destination: `${backend}/health`,
       },
     ];
   },

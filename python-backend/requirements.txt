@@ -1,18 +1,19 @@
-crewai
-crewai[tools]
-pydantic
-fastapi
-uvicorn
-python-dotenv
-httpx
-requests
-googlemaps
-exa_py
-twilio
-openai
-elevenlabs
-openai-agents
-opik
+# Core
+openai-agents>=0.0.16
+openai>=1.68.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.6.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.9
+httpx>=0.27.0
+
+# Optional: voice synthesis (ElevenLabs TTS)
+elevenlabs>=1.0.0
+
+# Optional: observability (only used when OPIK_ENABLE=true)
+# opik
+
+# Dev / testing
 pytest
 pytest-asyncio
-python-multipart
