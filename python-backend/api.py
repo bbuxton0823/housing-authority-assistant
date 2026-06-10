@@ -83,7 +83,7 @@ def get_openai_client() -> "openai.OpenAI | None":
     return openai.OpenAI(api_key=key) if key else None
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO))
 logger = logging.getLogger(__name__)
 
 app = FastAPI()

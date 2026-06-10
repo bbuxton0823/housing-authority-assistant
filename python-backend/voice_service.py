@@ -60,39 +60,65 @@ class HousingVoiceService:
         # Cache for common responses
         self._audio_cache: Dict[str, bytes] = {}
 
-        # Agent-specific voice settings
+        # Agent-specific voice settings.
+        # Each agent gets a distinct ElevenLabs premade voice so callers can
+        # hear when they've been handed off to a different specialist.
         self.agent_settings = {
             "triage": {
+                # Rachel - warm, professional greeter
+                "voice_id": "21m00Tcm4TlvDq8ikWAM",
                 "stability": 0.71,
                 "similarity_boost": 0.5,
                 "style": 0.0,
                 "intro": ""
             },
             "inspection": {
+                # Adam - clear, authoritative (inspection details/IDs)
+                "voice_id": "pNInz6obpgDQGcFmaJgB",
                 "stability": 0.75,  # More stable for clarity
                 "similarity_boost": 0.5,
                 "style": 0.0,
                 "intro": ""
             },
             "hps": {
+                # Sarah - warm, empathetic (income/household conversations)
+                "voice_id": "EXAVITQu4vr4xnSDxMaL",
                 "stability": 0.68,  # Slightly warmer
                 "similarity_boost": 0.55,
                 "style": 0.1,
                 "intro": ""
             },
             "landlord": {
+                # Antoni - professional, businesslike
+                "voice_id": "ErXwobaYiN019PkySvjV",
                 "stability": 0.72,
                 "similarity_boost": 0.5,
                 "style": 0.0,
                 "intro": ""
             },
             "general": {
+                # Elli - friendly, approachable (FAQ/hours/contact)
+                "voice_id": "MF3mGyEYCl7XYWbV9V6O",
                 "stability": 0.70,
                 "similarity_boost": 0.5,
                 "style": 0.05,
                 "intro": ""
             }
         }
+
+    @staticmethod
+    def normalize_agent(agent: str) -> str:
+        """Map UI agent names (e.g. 'Inspection Agent') to settings keys."""
+        a = (agent or "").lower().replace("agent", "").strip()
+        if "inspection" in a:
+            return "inspection"
+        if "landlord" in a:
+            return "landlord"
+        if "hps" in a or "housing program" in a:
+            return "hps"
+        if "general" in a or "information" in a:
+            return "general"
+        return "triage"
 
     def text_to_speech(
         self,
@@ -116,16 +142,18 @@ class HousingVoiceService:
             return None
 
         try:
+            # Get agent settings (normalize names like 'Inspection Agent')
+            agent_key = self.normalize_agent(agent_type)
+            settings = self.agent_settings.get(agent_key, self.agent_settings["triage"])
+            voice_id = settings.get("voice_id", self.voice_id)
+
             # Optimize text for speech
-            optimized_text = self.optimize_for_speech(text, agent_type)
+            optimized_text = self.optimize_for_speech(text, agent_key)
 
             # Check cache
-            cache_key = f"{agent_type}:{language}:{optimized_text}"
+            cache_key = f"{agent_key}:{language}:{optimized_text}"
             if cache_key in self._audio_cache:
                 return self._audio_cache[cache_key]
-
-            # Get agent settings
-            settings = self.agent_settings.get(agent_type, self.agent_settings["triage"])
 
             # Generate audio
             model_id = "eleven_multilingual_v2" if language != "english" else "eleven_monolingual_v1"
@@ -139,7 +167,7 @@ class HousingVoiceService:
                         use_speaker_boost=True,
                     )
                 audio = self._client.text_to_speech.convert(
-                    voice_id=self.voice_id,
+                    voice_id=voice_id,
                     text=optimized_text,
                     model_id=model_id,
                     voice_settings=voice_settings,
@@ -148,7 +176,7 @@ class HousingVoiceService:
                 audio = generate(
                     text=optimized_text,
                     voice=Voice(
-                        voice_id=self.voice_id,
+                        voice_id=voice_id,
                         settings=VoiceSettings(
                             stability=settings["stability"],
                             similarity_boost=settings["similarity_boost"],
