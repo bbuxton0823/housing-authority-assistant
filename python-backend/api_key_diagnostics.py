@@ -5,7 +5,7 @@ import os
 import asyncio
 from dotenv import load_dotenv
 
-def test_api_key_format():
+def check_api_key_format():
     """Test API key format and loading."""
     load_dotenv()
     key = os.getenv('OPENAI_API_KEY')
@@ -32,7 +32,7 @@ def test_api_key_format():
     
     return bool(key) and key.startswith('sk-')
 
-async def test_openai_connection():
+async def check_openai_connection():
     """Test actual OpenAI API connection."""
     try:
         from safe_openai_fix import apply_safe_fix
@@ -55,7 +55,7 @@ async def test_openai_connection():
         print(f"   ❌ Failed: {type(e).__name__}: {e}")
         return False
 
-async def test_housing_assistant():
+async def check_housing_assistant():
     """Test the Housing Authority Assistant agents."""
     try:
         from safe_openai_fix import apply_safe_fix
@@ -84,19 +84,19 @@ async def main():
     print("=" * 50)
     
     # Test 1: API key format
-    if not test_api_key_format():
+    if not check_api_key_format():
         print("\n❌ API key format test failed")
         print("💡 Run: python set_api_key.py to fix this")
         return
     
     # Test 2: OpenAI connection
-    if not await test_openai_connection():
+    if not await check_openai_connection():
         print("\n❌ OpenAI connection test failed")
         print("💡 Check your API key at https://platform.openai.com/api-keys")
         return
     
     # Test 3: Housing Assistant
-    if not await test_housing_assistant():
+    if not await check_housing_assistant():
         print("\n❌ Housing Assistant test failed")
         return
     
