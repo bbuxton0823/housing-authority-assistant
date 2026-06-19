@@ -1,0 +1,22 @@
+[
+  {
+    "file": "/Users/bychabuxton/housing-authority-assistant/test videos/00_all_three_routed_call_examples.mp4",
+    "duration_seconds": 89.6,
+    "route": "Combined reel: inspection, HPS, and landlord examples"
+  },
+  {
+    "file": "/Users/bychabuxton/housing-authority-assistant/test videos/01_inspection_nspire_smoke_alarm.mp4",
+    "duration_seconds": 27.61,
+    "route": "Incoming call -> Triage Agent -> Inspection Agent"
+  },
+  {
+    "file": "/Users/bychabuxton/housing-authority-assistant/test videos/02_hps_income_change_interim_reexam.mp4",
+    "duration_seconds": 33.13,
+    "route": "Incoming call -> Triage Agent -> HPS Agent"
+  },
+  {
+    "file": "/Users/bychabuxton/housing-authority-assistant/test videos/03_landlord_hcv_responsibilities.mp4",
+    "duration_seconds": 28.86,
+    "route": "Incoming call -> Triage Agent -> Landlord Services Agent"
+  }
+]
