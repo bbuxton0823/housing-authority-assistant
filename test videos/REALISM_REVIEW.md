@@ -1,29 +1,25 @@
 # Routed Call Realism Review
 
-## What was missing
+## What was missing in the earlier examples
 
-- The first version sounded too polished. Real callers often lead with worry, partial facts, and practical consequences, not clean policy keywords.
-- The triage agent routed correctly, but needed a stronger caller-facing confirmation: repeat the concern, name the reason for the transfer, and tell the caller to stay on the line.
-- The specialist answers needed real-world limits. The assistant can explain standards and likely next steps, but it should not imply it can access case files, schedule calendars, decide inspection results, or change rent amounts.
-- The examples needed a second caller turn after transfer. That back-and-forth shows the specialist handling the real concern instead of just giving a policy paragraph.
-- Privacy should be modeled in the call greeting. A housing call may involve sensitive information, so the agent should remind callers not to share Social Security numbers, bank details, or medical details.
+- The caller sounded too polished. Real callers often lead with worry, uncertainty, or a partial description rather than a clean policy keyword.
+- The greeting needed a privacy boundary. A real public-facing phone assistant should remind callers not to share Social Security numbers, bank details, or medical details.
+- The handoff needed a more natural transfer phrase. "Stay on the line" feels closer to a real phone routing experience than simply announcing a route.
+- The specialist needed to state limits. The agent can explain policy and next steps, but staff must confirm inspection outcomes, rent changes, payment decisions, and case-specific effective dates.
+- Each scenario needed one practical follow-up. Real calls rarely end after the first answer; callers ask what to do next.
 
 ## Changes applied
 
-- Added a privacy reminder to the intake greeting.
-- Rewrote caller questions to sound more like real calls: uncertainty, anxiety, and concrete situations.
-- Made triage paraphrase the caller's concern before routing.
-- Added caller feedback after each handoff.
-- Added a practical follow-up in each scenario.
-- Added specialist caveats:
-  - Inspection: explain NSPIRE smoke alarm standards, but staff/inspectors decide official outcomes.
-  - HPS: explain interim reexamination rights, but staff verify documentation and effective dates.
-  - Landlord Services: explain landlord responsibilities, but staff decide payment, rent reasonableness, and inspection outcomes.
+- Added privacy reminders to the triage greeting.
+- Rewrote caller questions to sound more situational and less scripted.
+- Added caller feedback immediately after each transfer.
+- Added a caller follow-up after the specialist answer.
+- Added realistic limitations: no case-file access, no final inspection decision, no payment/rent decision, and staff confirmation required.
+- Added practical next steps: report life-safety items immediately, submit income changes in writing with proof, document landlord repairs, and keep following the current rent notice until an official update is issued.
 
-## Remaining production considerations
+## Remaining critique
 
-- A real phone deployment should authenticate callers before discussing case-specific status.
-- Emergency and life-safety cases should have escalation language, not only general guidance.
-- If the assistant collects contact details for follow-up, the call should disclose how that information is used and stored.
-- Live staff transfer rules should be clear: office hours, voicemail fallback, and what happens when no staff member is available.
-- Multilingual callers should be routed without forcing them to restate the full issue in English.
+- The examples are still intentionally concise. A true production call may include authentication, callback consent, language access, call recording notices, or queue/hold behavior.
+- The demos do not collect a caller name, T-code, phone number, or email because the public examples should avoid showing personal information.
+- The agent does not actually submit a ticket in these demo videos. In production, the stronger workflow would create a staff-reviewable referral or case note after collecting the minimum necessary contact details.
+- The videos use clean synthesized audio. Real phone calls would include pauses, interruptions, noise, and speech recognition corrections.
