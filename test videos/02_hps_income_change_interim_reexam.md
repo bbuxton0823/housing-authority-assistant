@@ -2,7 +2,7 @@
 
 - Route: Routing live
 - Specialist path: Triage -> HPS
-- Rendered duration: 86.4 seconds
+- Rendered duration: 87.5 seconds
 - Audio: ElevenLabs voices via `voice_service.py` agent voice assignments
 
 **Triage Agent:** Hello, and welcome to the S-M-C Housing Authority Assistant. I can route general housing questions to the right specialist. Please do not share Social Security numbers, bank details, or medical details on this line. How can I help today?

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Generate three routed sample-call MP4s for local testing.
+Generate routed sample-call MP4s for local testing.
 
 Outputs are written to ../test videos/:
   01_inspection_nspire_smoke_alarm.mp4
   02_hps_income_change_interim_reexam.mp4
   03_landlord_hcv_responsibilities.mp4
+  04_spanish_general_information.mp4
 
 The media folder is intentionally gitignored because it contains generated
 audio/video assets and may contain paid ElevenLabs output.
@@ -71,7 +72,7 @@ def ffprobe_duration(path: Path) -> float:
     return float(json.loads(result.stdout)["format"]["duration"])
 
 
-def synthesize(text: str, agent: str, output: Path) -> None:
+def synthesize(text: str, agent: str, output: Path, *, language: str = "english") -> None:
     if output.exists() and output.stat().st_size > 0:
         return
 
@@ -81,12 +82,12 @@ def synthesize(text: str, agent: str, output: Path) -> None:
         audio = voice_service._client.text_to_speech.convert(
             voice_id=CALLER_VOICE_ID,
             text=text,
-            model_id="eleven_monolingual_v1",
+            model_id="eleven_multilingual_v2" if language != "english" else "eleven_monolingual_v1",
         )
         if hasattr(audio, "__iter__") and not isinstance(audio, bytes):
             audio = b"".join(audio)
     else:
-        audio = voice_service.text_to_speech(text, agent_type=agent)
+        audio = voice_service.text_to_speech(text, agent_type=agent, language=language)
 
     if not audio:
         raise RuntimeError(f"Failed to synthesize audio for {agent}: {text[:80]}")
@@ -133,6 +134,7 @@ def agent_label(agent: str) -> str:
         "inspection": "Inspection",
         "hps": "HPS",
         "landlord": "Landlord",
+        "general": "General Info",
     }.get(agent, "Specialist")
 
 
@@ -161,6 +163,7 @@ def draw_flow(
         "inspection": (47, 179, 68),
         "hps": (180, 90, 242),
         "landlord": (249, 115, 22),
+        "general": (20, 184, 166),
     }
 
     for idx, (key, label) in enumerate(steps):
@@ -512,6 +515,58 @@ EXAMPLES = [
             },
         ],
     },
+    {
+        "slug": "04_spanish_general_information",
+        "title": "Example 4: Spanish Caller Routed To General Information",
+        "route": "Enrutamiento en español",
+        "specialist": "general",
+        "language": "spanish",
+        "transcript": [
+            {
+                "speaker": "Triage Agent",
+                "agent": "triage",
+                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can route general housing questions to the right specialist. Please do not share Social Security numbers, bank details, or medical details on this line. How can I help today?",
+                "source": "Call intake",
+                "language": "english",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "Hola, buenos días. ¿Hablan español? Es que recibí una carta de la vivienda y no la entiendo muy bien.",
+                "source": "Caller asks for Spanish support",
+            },
+            {
+                "speaker": "Triage Agent",
+                "agent": "triage",
+                "text": "Sí, podemos continuar en español. Entiendo que recibió una carta de la autoridad de vivienda y quiere saber qué significa. Por favor no comparta su Seguro Social, datos bancarios ni información médica por esta línea. Le voy a comunicar con Información General para orientarle.",
+                "source": "Language switch: triage continues in Spanish and routes to general information",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "Gracias. La carta dice que tengo que mandar documentos antes de una fecha, pero no sé si tengo que ir a la oficina o si puedo enviarlos por correo electrónico.",
+                "source": "Caller explains the practical problem",
+            },
+            {
+                "speaker": "General Information Agent",
+                "agent": "general",
+                "text": "Claro. Usted está preguntando cómo entregar documentos y si necesita ir en persona. En general, puede comunicarse con la autoridad de vivienda para confirmar el método aceptado para su caso. Si la carta incluye un correo electrónico, número de teléfono o portal, use ese contacto y conserve una copia de lo que envíe.",
+                "source": "General information response in Spanish",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "¿Y si se me pasa la fecha? Me preocupa que me quiten la ayuda.",
+                "source": "Caller follow-up with realistic concern",
+            },
+            {
+                "speaker": "General Information Agent",
+                "agent": "general",
+                "text": "Entiendo la preocupación. No puedo ver su expediente ni decidir una extensión desde esta llamada. Lo más seguro es responder antes de la fecha indicada. Si necesita más tiempo, llame o escriba lo antes posible, explique la razón y pida confirmación por escrito. Si tiene un código de caso o T-code, puede incluirlo, pero no envíe números de Seguro Social por este medio.",
+                "source": "Real-world limitation: no case access, staff confirm deadlines or extensions",
+            },
+        ],
+    },
 ]
 
 
@@ -524,7 +579,8 @@ def render_example(example: dict) -> tuple[Path, float]:
     for index, turn in enumerate(example["transcript"], start=1):
         audio = case_dir / f"{index:02d}_{turn['agent']}.mp3"
         part = case_dir / f"{index:02d}_{turn['agent']}.mp4"
-        synthesize(turn["text"], turn["agent"], audio)
+        language = turn.get("language", example.get("language", "english"))
+        synthesize(turn["text"], turn["agent"], audio, language=language)
         render_segment(
             index=index,
             case_dir=case_dir,
@@ -597,7 +653,7 @@ def main() -> int:
         {
             "file": str(combined),
             "duration_seconds": round(combined_duration, 2),
-            "route": "Combined reel: inspection, HPS, and landlord examples",
+            "route": "Combined reel: inspection, HPS, landlord, and Spanish general information examples",
         },
     )
     print(f"wrote {combined} ({combined_duration:.1f}s)")
