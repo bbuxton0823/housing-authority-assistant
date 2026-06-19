@@ -114,6 +114,85 @@ def draw_wrapped(
         y += (bbox[3] - bbox[1]) + line_gap
 
 
+def draw_centered(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    text: str,
+    *,
+    font: ImageFont.FreeTypeFont,
+    fill: tuple[int, int, int],
+) -> None:
+    bbox = draw.textbbox((0, 0), text, font=font)
+    x = box[0] + ((box[2] - box[0]) - (bbox[2] - bbox[0])) // 2
+    y = box[1] + ((box[3] - box[1]) - (bbox[3] - bbox[1])) // 2 - 2
+    draw.text((x, y), text, font=font, fill=fill)
+
+
+def agent_label(agent: str) -> str:
+    return {
+        "inspection": "Inspection",
+        "hps": "HPS",
+        "landlord": "Landlord",
+    }.get(agent, "Specialist")
+
+
+def draw_flow(
+    draw: ImageDraw.ImageDraw,
+    *,
+    specialist: str,
+    active_agent: str,
+    font: ImageFont.FreeTypeFont,
+) -> None:
+    steps = [
+        ("caller", "Caller"),
+        ("triage", "Triage"),
+        (specialist, agent_label(specialist)),
+    ]
+    x = 76
+    y = 156
+    w = 240
+    h = 52
+    gap = 62
+    muted_fill = (31, 42, 62)
+    muted_outline = (75, 89, 113)
+    active_colors = {
+        "caller": (240, 180, 41),
+        "triage": (79, 134, 247),
+        "inspection": (47, 179, 68),
+        "hps": (180, 90, 242),
+        "landlord": (249, 115, 22),
+    }
+
+    for idx, (key, label) in enumerate(steps):
+        left = x + idx * (w + gap)
+        box = (left, y, left + w, y + h)
+        is_active = active_agent == key
+        color = active_colors.get(key, (79, 134, 247))
+        draw.rounded_rectangle(
+            box,
+            radius=8,
+            fill=tuple(max(0, int(c * 0.30)) for c in color) if is_active else muted_fill,
+            outline=color if is_active else muted_outline,
+            width=3 if is_active else 1,
+        )
+        draw_centered(
+            draw,
+            box,
+            label,
+            font=font,
+            fill=(255, 255, 255) if is_active else (185, 198, 221),
+        )
+        if idx < len(steps) - 1:
+            line_x1 = left + w + 10
+            line_x2 = left + w + gap - 10
+            line_y = y + h // 2
+            draw.line((line_x1, line_y, line_x2, line_y), fill=(118, 133, 160), width=3)
+            draw.polygon(
+                [(line_x2, line_y), (line_x2 - 10, line_y - 7), (line_x2 - 10, line_y + 7)],
+                fill=(118, 133, 160),
+            )
+
+
 def render_card(
     *,
     path: Path,
@@ -121,6 +200,7 @@ def render_card(
     route: str,
     speaker: str,
     agent: str,
+    specialist: str,
     body: str,
     source: str,
 ) -> None:
@@ -128,10 +208,10 @@ def render_card(
     draw = ImageDraw.Draw(image)
 
     font_title = load_font(FONT_BOLD, 32)
-    font_route = load_font(FONT_REGULAR, 23)
-    font_speaker = load_font(FONT_BOLD, 31)
-    font_body = load_font(FONT_REGULAR, 34)
-    font_source = load_font(FONT_REGULAR, 21)
+    font_speaker = load_font(FONT_BOLD, 30)
+    font_body = load_font(FONT_REGULAR, 28)
+    font_source = load_font(FONT_REGULAR, 20)
+    font_flow = load_font(FONT_BOLD, 22)
 
     agent_color = {
         "caller": (240, 180, 41),
@@ -153,16 +233,16 @@ def render_card(
     )
 
     draw.text((76, 70), example_title, font=font_title, fill=(255, 255, 255))
-    draw.text((76, 168), route, font=font_route, fill=(185, 198, 221))
+    draw_flow(draw, specialist=specialist, active_agent=agent, font=font_flow)
     draw.text((76, 268), speaker, font=font_speaker, fill=agent_color)
     draw_wrapped(
         draw,
         body,
-        (76, 326),
+        (76, 320),
         font=font_body,
         fill=(255, 255, 255),
-        width=56,
-        line_gap=13,
+        width=68,
+        line_gap=9,
     )
     draw_wrapped(
         draw,
@@ -170,7 +250,7 @@ def render_card(
         (76, 620),
         font=font_source,
         fill=(215, 225, 242),
-        width=92,
+        width=96,
         line_gap=6,
     )
     image.save(path)
@@ -186,6 +266,7 @@ def render_segment(
     route: str,
     speaker: str,
     agent: str,
+    specialist: str,
     body: str,
     source: str,
 ) -> None:
@@ -197,6 +278,7 @@ def render_segment(
         route=route,
         speaker=speaker,
         agent=agent,
+        specialist=specialist,
         body=body,
         source=source,
     )
@@ -283,12 +365,13 @@ EXAMPLES = [
     {
         "slug": "01_inspection_nspire_smoke_alarm",
         "title": "Example 1: Inspection Question Routed To Inspection Agent",
-        "route": "Incoming call -> Triage Agent -> Inspection Agent",
+        "route": "Routing live",
+        "specialist": "inspection",
         "transcript": [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. How can I help you today?",
+                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can help route your housing question to the right specialist. How can I help today?",
                 "source": "Call intake",
             },
             {
@@ -300,13 +383,19 @@ EXAMPLES = [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "That is an inspection standards question, so I am routing you to the Inspection Agent.",
+                "text": "I hear you asking what HUD requires for smoke alarms during an NSPIRE inspection. That is an inspection standards question, so I am routing you to the Inspection Agent now.",
                 "source": "Voice route: triage to inspection",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "Great, I just want to know what to check before the inspector comes.",
+                "source": "Caller feedback after handoff",
             },
             {
                 "speaker": "Inspection Agent",
                 "agent": "inspection",
-                "text": "HUD's NSPIRE smoke alarm standard says smoke alarms are required inside each bedroom, outside the bedrooms, and on each level. The alarm should not be obstructed, and it should produce an audio or visual alarm when tested.",
+                "text": "Absolutely. You're asking what to check before inspection, especially smoke alarms. HUD's NSPIRE standard says smoke alarms are required inside each bedroom, outside the bedrooms, and on each level. They should not be blocked, and they should produce an audio or visual alarm when tested.",
                 "source": "Source: NSPIRE_Final_Standards_HUD.pdf, Table 52 Smoke Alarm Standard",
             },
         ],
@@ -314,12 +403,13 @@ EXAMPLES = [
     {
         "slug": "02_hps_income_change_interim_reexam",
         "title": "Example 2: Income Change Routed To HPS Agent",
-        "route": "Incoming call -> Triage Agent -> HPS Agent",
+        "route": "Routing live",
+        "specialist": "hps",
         "transcript": [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. How can I help you today?",
+                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can help route your housing question to the right specialist. How can I help today?",
                 "source": "Call intake",
             },
             {
@@ -331,13 +421,19 @@ EXAMPLES = [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "That is about income reporting and program changes, so I am routing you to the Housing Program Specialist Agent.",
+                "text": "I understand. Your income went down, and you want to know whether to report that for your voucher. That is about income reporting and program changes, so I am routing you to the Housing Program Specialist Agent.",
                 "source": "Voice route: triage to HPS",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "Thanks. I mostly want to know if asking for a review is allowed.",
+                "source": "Caller feedback after handoff",
             },
             {
                 "speaker": "HPS Agent",
                 "agent": "hps",
-                "text": "Yes. HUD's HCV reexamination guidance says PHAs must process an interim reexamination whenever the family requests one. Your housing authority's administrative plan controls the reporting deadline, and staff will verify the change before any rent or assistance adjustment.",
+                "text": "Yes, asking for a review is allowed. You're asking whether an income decrease can be reviewed between annual recertifications. HUD's HCV guidance says PHAs must process an interim reexamination whenever the family requests one. Staff will verify the change before any rent or assistance adjustment.",
                 "source": "Source: HUD_HCV_Guidebook_Reexaminations.pdf, Section 2.2 Interim Reexaminations",
             },
         ],
@@ -345,12 +441,13 @@ EXAMPLES = [
     {
         "slug": "03_landlord_hcv_responsibilities",
         "title": "Example 3: Landlord Question Routed To Landlord Services",
-        "route": "Incoming call -> Triage Agent -> Landlord Services Agent",
+        "route": "Routing live",
+        "specialist": "landlord",
         "transcript": [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. How can I help you today?",
+                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can help route your housing question to the right specialist. How can I help today?",
                 "source": "Call intake",
             },
             {
@@ -362,13 +459,19 @@ EXAMPLES = [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "That is a landlord services question, so I am routing you to the Landlord Services Agent.",
+                "text": "Thanks. You're asking what HUD expects a Section 8 landlord to maintain. That is a landlord services question, so I am routing you to the Landlord Services Agent.",
                 "source": "Voice route: triage to landlord services",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "Perfect. I want to make sure I understand my role before the next inspection.",
+                "source": "Caller feedback after handoff",
             },
             {
                 "speaker": "Landlord Services Agent",
                 "agent": "landlord",
-                "text": "HUD describes the landlord's role as providing decent, safe, and sanitary housing at a reasonable rent. The unit must pass housing quality standards and be maintained to those standards as long as the owner receives housing assistance payments.",
+                "text": "That makes sense. You're asking about your role as the landlord before inspection. HUD says the landlord provides decent, safe, and sanitary housing at a reasonable rent. The unit must pass housing quality standards and be maintained to those standards while assistance payments are being made.",
                 "source": "Source: HUD_HCV_Landlord_Fact_Sheet.pdf, landlord role summary",
             },
         ],
@@ -395,6 +498,7 @@ def render_example(example: dict) -> tuple[Path, float]:
             route=example["route"],
             speaker=turn["speaker"],
             agent=turn["agent"],
+            specialist=example["specialist"],
             body=turn["text"],
             source=turn["source"],
         )
@@ -412,6 +516,7 @@ def write_transcript(example: dict, output: Path, duration: float) -> None:
         f"# {example['title']}",
         "",
         f"- Route: {example['route']}",
+        f"- Specialist path: Triage -> {agent_label(example['specialist'])}",
         f"- Rendered duration: {duration:.1f} seconds",
         "- Audio: ElevenLabs voices via `voice_service.py` agent voice assignments",
         "",
