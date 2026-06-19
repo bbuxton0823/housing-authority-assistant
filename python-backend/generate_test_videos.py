@@ -30,7 +30,7 @@ from voice_service import voice_service  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = ROOT / "test videos"
-WORK_DIR = Path("/private/tmp/housing_call_video_work")
+WORK_DIR = Path("/private/tmp/housing_call_video_work_realistic")
 FONT_REGULAR = "/Library/Fonts/Inter-Regular.ttf"
 FONT_BOLD = "/Library/Fonts/Inter-Bold.ttf"
 CALLER_VOICE_ID = "AZnzlk1XvdvUeBnXmlld"  # Domi, distinct from app agent voices.
@@ -371,32 +371,44 @@ EXAMPLES = [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can help route your housing question to the right specialist. How can I help today?",
-                "source": "Call intake",
+                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can route general housing questions to the right specialist. Please do not share Social Security numbers, bank details, or medical details on this line. How can I help today?",
+                "source": "Call intake with privacy reminder",
             },
             {
                 "speaker": "Caller",
                 "agent": "caller",
-                "text": "I have an upcoming inspection. What does HUD say about smoke alarms under the new NSPIRE standards?",
+                "text": "Hi. I got an inspection notice, and I'm worried because one smoke alarm chirps and another one might be missing. What does HUD actually look for now under NSPIRE?",
                 "source": "Caller question",
             },
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "I hear you asking what HUD requires for smoke alarms during an NSPIRE inspection. That is an inspection standards question, so I am routing you to the Inspection Agent now.",
+                "text": "I hear you asking what HUD requires for smoke alarms during an NSPIRE inspection, especially because one alarm may be missing or not working. That is an inspection standards question, so I'll route you to the Inspection Agent. Stay on the line.",
                 "source": "Voice route: triage to inspection",
             },
             {
                 "speaker": "Caller",
                 "agent": "caller",
-                "text": "Great, I just want to know what to check before the inspector comes.",
+                "text": "Okay, thanks. I just want to know what I should check before the inspector comes, and whether this is urgent.",
                 "source": "Caller feedback after handoff",
             },
             {
                 "speaker": "Inspection Agent",
                 "agent": "inspection",
-                "text": "Absolutely. You're asking what to check before inspection, especially smoke alarms. HUD's NSPIRE standard says smoke alarms are required inside each bedroom, outside the bedrooms, and on each level. They should not be blocked, and they should produce an audio or visual alarm when tested.",
+                "text": "Absolutely. You're asking what to check before inspection, especially whether the smoke alarms are present and working. Under HUD's NSPIRE standard, smoke alarms are required inside each sleeping area, outside sleeping areas, and on each level. They should not be blocked, and they should produce an audible or visual alarm when tested.",
                 "source": "Source: NSPIRE_Final_Standards_HUD.pdf, Table 52 Smoke Alarm Standard",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "So if it keeps chirping, should I wait for the inspection, or tell someone now?",
+                "source": "Caller follow-up",
+            },
+            {
+                "speaker": "Inspection Agent",
+                "agent": "inspection",
+                "text": "Do not wait for the inspection if a smoke alarm is missing or not working. Report it to your landlord or property manager right away because it is a life-safety item. I can explain the standard, but the inspector and housing authority staff make the official inspection decision.",
+                "source": "Real-world limitation: explain standard, staff determine inspection result",
             },
         ],
     },
@@ -409,25 +421,25 @@ EXAMPLES = [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can help route your housing question to the right specialist. How can I help today?",
-                "source": "Call intake",
+                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can route general housing questions to the right specialist. Please do not share Social Security numbers, bank details, or medical details on this line. How can I help today?",
+                "source": "Call intake with privacy reminder",
             },
             {
                 "speaker": "Caller",
                 "agent": "caller",
-                "text": "My work hours were cut and my income went down. Do I need to report that for my voucher?",
+                "text": "My hours got cut at work, and I'm worried I won't be able to pay the same rent next month. Do I report that for my voucher, or do I wait until annual recertification?",
                 "source": "Caller question",
             },
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "I understand. Your income went down, and you want to know whether to report that for your voucher. That is about income reporting and program changes, so I am routing you to the Housing Program Specialist Agent.",
+                "text": "I understand. Your income went down, and you want to know whether to report it now instead of waiting for your annual recertification. That is about income reporting and program changes, so I'll route you to the Housing Program Specialist Agent.",
                 "source": "Voice route: triage to HPS",
             },
             {
                 "speaker": "Caller",
                 "agent": "caller",
-                "text": "Thanks. I mostly want to know if asking for a review is allowed.",
+                "text": "Thanks. I mostly need to know if asking for a review is allowed, and what proof they usually ask for.",
                 "source": "Caller feedback after handoff",
             },
             {
@@ -435,6 +447,18 @@ EXAMPLES = [
                 "agent": "hps",
                 "text": "Yes, asking for a review is allowed. You're asking whether an income decrease can be reviewed between annual recertifications. HUD's HCV guidance says PHAs must process an interim reexamination whenever the family requests one. Staff will verify the change before any rent or assistance adjustment.",
                 "source": "Source: HUD_HCV_Guidebook_Reexaminations.pdf, Section 2.2 Interim Reexaminations",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "Should I send pay stubs? And do I pay the old rent amount until they answer?",
+                "source": "Caller follow-up",
+            },
+            {
+                "speaker": "HPS Agent",
+                "agent": "hps",
+                "text": "A real next step is to report the change in writing and include proof, such as recent pay stubs, an employer letter, or notice of reduced hours. I do not have access to your case file or the HPS calendar here, so staff must confirm the effective date. Until you receive an official updated rent notice, keep following your current rent notice.",
+                "source": "Real-world limitation: no case access, staff confirm effective date",
             },
         ],
     },
@@ -447,25 +471,25 @@ EXAMPLES = [
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can help route your housing question to the right specialist. How can I help today?",
-                "source": "Call intake",
+                "text": "Hello, and welcome to the S-M-C Housing Authority Assistant. I can route general housing questions to the right specialist. Please do not share Social Security numbers, bank details, or medical details on this line. How can I help today?",
+                "source": "Call intake with privacy reminder",
             },
             {
                 "speaker": "Caller",
                 "agent": "caller",
-                "text": "I am a landlord with a Section 8 tenant. What does HUD expect me to maintain?",
+                "text": "I'm a landlord with a voucher tenant, and the tenant told me the kitchen outlet and bathroom fan might be inspection issues. What does HUD expect me to maintain?",
                 "source": "Caller question",
             },
             {
                 "speaker": "Triage Agent",
                 "agent": "triage",
-                "text": "Thanks. You're asking what HUD expects a Section 8 landlord to maintain. That is a landlord services question, so I am routing you to the Landlord Services Agent.",
+                "text": "Thanks. You're asking what HUD expects a voucher landlord to maintain, including possible inspection issues in the unit. That is a landlord services question, so I'll route you to the Landlord Services Agent.",
                 "source": "Voice route: triage to landlord services",
             },
             {
                 "speaker": "Caller",
                 "agent": "caller",
-                "text": "Perfect. I want to make sure I understand my role before the next inspection.",
+                "text": "Perfect. I want to handle it correctly before the next inspection, and I don't want to accidentally charge the tenant for something I should fix.",
                 "source": "Caller feedback after handoff",
             },
             {
@@ -473,6 +497,18 @@ EXAMPLES = [
                 "agent": "landlord",
                 "text": "That makes sense. You're asking about your role as the landlord before inspection. HUD says the landlord provides decent, safe, and sanitary housing at a reasonable rent. The unit must pass housing quality standards and be maintained to those standards while assistance payments are being made.",
                 "source": "Source: HUD_HCV_Landlord_Fact_Sheet.pdf, landlord role summary",
+            },
+            {
+                "speaker": "Caller",
+                "agent": "caller",
+                "text": "So should I document repairs and call the housing authority, or just fix it and wait?",
+                "source": "Caller follow-up",
+            },
+            {
+                "speaker": "Landlord Services Agent",
+                "agent": "landlord",
+                "text": "The realistic next step is to make the repair promptly, document what was done, and keep communication in writing. If there is an upcoming inspection, contact landlord services or the assigned housing authority contact with the update. I can explain program expectations, but I cannot decide payment, rent reasonableness, or inspection outcomes on this call.",
+                "source": "Real-world limitation: explain expectations, staff decide payment and inspection outcomes",
             },
         ],
     },

@@ -1,22 +1,22 @@
 [
   {
     "file": "/Users/bychabuxton/housing-authority-assistant/test videos/00_all_three_routed_call_examples.mp4",
-    "duration_seconds": 117.61,
+    "duration_seconds": 251.07,
     "route": "Combined reel: inspection, HPS, and landlord examples"
   },
   {
     "file": "/Users/bychabuxton/housing-authority-assistant/test videos/01_inspection_nspire_smoke_alarm.mp4",
-    "duration_seconds": 36.25,
+    "duration_seconds": 81.11,
     "route": "Routing live"
   },
   {
     "file": "/Users/bychabuxton/housing-authority-assistant/test videos/02_hps_income_change_interim_reexam.mp4",
-    "duration_seconds": 44.93,
+    "duration_seconds": 86.35,
     "route": "Routing live"
   },
   {
     "file": "/Users/bychabuxton/housing-authority-assistant/test videos/03_landlord_hcv_responsibilities.mp4",
-    "duration_seconds": 36.43,
+    "duration_seconds": 83.61,
     "route": "Routing live"
   }
 ]
