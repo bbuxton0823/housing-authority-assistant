@@ -155,8 +155,9 @@ class HousingVoiceService:
             if cache_key in self._audio_cache:
                 return self._audio_cache[cache_key]
 
-            # Generate audio
-            model_id = "eleven_multilingual_v2" if language != "english" else "eleven_monolingual_v1"
+            # Generate audio (eleven_monolingual_v1 is legacy/deprecated;
+            # multilingual v2 covers English as well)
+            model_id = "eleven_multilingual_v2"
             if ELEVENLABS_MODE == "v1":
                 voice_settings = None
                 if VoiceSettings is not None:

@@ -497,7 +497,7 @@ To add new agents:
 ```python
 custom_agent = Agent[HousingAuthorityContext](
     name="Custom Agent",
-    model="gpt-4o",
+    model="gpt-4.1",
     handoff_description="Description here",
     instructions="Agent instructions",
     tools=[your_tools],
@@ -505,13 +505,15 @@ custom_agent = Agent[HousingAuthorityContext](
 )
 ```
 
-2. **Add to API routing:**
+2. **Register the agent:**
 ```python
-# In api.py _get_agent_by_name()
-custom_agent.name: custom_agent,
-
-# In _build_agents_list()
-make_agent_dict(custom_agent),
+# In agent_registry.py, add the agent to ALL_AGENTS so
+# get_agent_by_name() and build_agents_list() pick it up
+ALL_AGENTS = (
+    triage_agent,
+    # ...
+    custom_agent,
+)
 ```
 
 3. **Add handoff relationships:**

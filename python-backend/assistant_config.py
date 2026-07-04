@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Models are configurable via environment (.env)
-MAIN_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
-GUARDRAIL_MODEL = os.getenv("GUARDRAIL_MODEL", "gpt-4o-mini")
+MAIN_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1")
+GUARDRAIL_MODEL = os.getenv("GUARDRAIL_MODEL", "gpt-4.1-mini")
 
 # Office contact used throughout responses
 OFFICE_PHONE = "(650) 123-4567"

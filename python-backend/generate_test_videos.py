@@ -82,7 +82,7 @@ def synthesize(text: str, agent: str, output: Path, *, language: str = "english"
         audio = voice_service._client.text_to_speech.convert(
             voice_id=CALLER_VOICE_ID,
             text=text,
-            model_id="eleven_multilingual_v2" if language != "english" else "eleven_monolingual_v1",
+            model_id="eleven_multilingual_v2",
         )
         if hasattr(audio, "__iter__") and not isinstance(audio, bytes):
             audio = b"".join(audio)

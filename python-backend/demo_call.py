@@ -74,7 +74,7 @@ def tts_caller(text: str) -> bytes:
     """Synthesize the caller's voice."""
     client = voice_service._client
     audio = client.text_to_speech.convert(
-        voice_id=CALLER_VOICE_ID, text=text, model_id="eleven_monolingual_v1")
+        voice_id=CALLER_VOICE_ID, text=text, model_id="eleven_multilingual_v2")
     if hasattr(audio, "__iter__") and not isinstance(audio, bytes):
         audio = b"".join(audio)
     return audio
