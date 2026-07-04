@@ -168,7 +168,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Set up environment variables (Mac users: see Mac Setup section below)
+# Set up environment variables (Mac users: see Troubleshooting below if you hit Unicode errors)
 cp .env.example .env
 # Edit .env and add your OpenAI API key:
 # OPENAI_API_KEY=your_openai_api_key_here
@@ -272,10 +272,18 @@ User: "I need Section 8 landlord forms"
 ### Backend Structure
 ```
 python-backend/
-├── main.py              # Core agents and business logic
-├── api.py               # FastAPI endpoints and routing
+├── main.py              # Agent definitions (triage + 4 specialists)
+├── api.py               # FastAPI endpoints (chat, voice, Twilio webhooks, admin)
+├── agent_registry.py    # Agent lookup + dashboard agent list
+├── assistant_config.py  # Models, scope notes, knowledge-base config
+├── assistant_context.py # Conversation context model
+├── guardrails.py        # Input guardrails (combined classifier)
+├── *_tools.py           # Domain tools (inspection, HPS, landlord, general, participant)
+├── referrals.py         # Team referral email routing
+├── voice_service.py     # ElevenLabs TTS
+├── build_rag.py         # Builds the RAG vector store from rag_docs/
 ├── requirements.txt     # Python dependencies
-└── .env                 # Environment variables
+└── .env                 # Environment variables (copy from .env.example)
 ```
 
 ### Frontend Structure
@@ -309,23 +317,29 @@ graph TD
 - `OPENAI_API_KEY`: Your OpenAI API key with Agents SDK access
 
 **Optional:**
+- `OPENAI_MODEL`: Model for the agents (default: `gpt-4.1`)
+- `GUARDRAIL_MODEL`: Model for the guardrail classifier (default: `gpt-4.1-mini`)
 - `LOG_LEVEL`: Set to `DEBUG` for verbose logging (default: `INFO`)
+
+See `python-backend/.env.example` for the full list (referral email routing, ElevenLabs voice, Twilio phone integration).
 
 ### Customization
 
 #### Adding New Agents
-1. Create agent in `python-backend/main.py`
-2. Add to imports in `python-backend/api.py`
-3. Update `_get_agent_by_name()` mapping
-4. Add to `_build_agents_list()` return
+1. Create the agent in `python-backend/main.py`
+2. Add it to `ALL_AGENTS` in `python-backend/agent_registry.py` (this feeds both `get_agent_by_name()` and the dashboard's agent list)
+3. Wire up handoffs in `main.py` (e.g. `triage_agent.handoffs.append(custom_agent)`)
 
 #### Modifying Guardrails
-Update guardrail definitions in `python-backend/main.py`:
+Guardrails live in `python-backend/guardrails.py`. All five checks share one
+combined classifier call per user message; edit the instructions of
+`combined_guardrail_agent` to change the policy, or add a new
+`@input_guardrail`-decorated function following the existing pattern:
 ```python
-relevance_guardrail = guardrail_function(
-    name="Custom Relevance Guardrail",
-    instructions="Your custom instructions here..."
-)
+@input_guardrail(name="Custom Guardrail")
+async def custom_guardrail(context, agent, input) -> GuardrailFunctionOutput:
+    out = await run_combined_guardrail(context, input)
+    return GuardrailFunctionOutput(output_info=out, tripwire_triggered=...)
 ```
 
 #### Frontend Customization
@@ -475,8 +489,8 @@ python -m uvicorn api:app --reload  # Backend with auto-reload
 **Mac Unicode copy/paste issues:**
 - If you get `UnicodeEncodeError` with OpenAI API calls
 - API key contains Unicode characters from Terminal copy/paste
-- **Solution**: Use `python set_api_key.py` for Mac-friendly setup
-- **Alternative**: Use `python start_server.py` to bypass .env issues
+- **Solution**: Re-copy the key into `python-backend/.env` (the backend also sanitizes common Unicode characters automatically at startup)
+- **Diagnosis**: Run `python api_key_diagnostics.py` to check the key for hidden Unicode characters
 
 For more troubleshooting, see: [docs/setup/TROUBLESHOOTING.md](docs/setup/TROUBLESHOOTING.md)
 
