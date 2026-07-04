@@ -39,11 +39,11 @@ async def check_openai_connection():
         apply_safe_fix()
         
         import openai
-        client = openai.OpenAI()
-        
+        client = openai.AsyncOpenAI()
+
         print("\n🌐 Testing OpenAI connection...")
-        response = await client.chat.completions.acreate(
-            model="gpt-3.5-turbo",
+        response = await client.chat.completions.create(
+            model="gpt-4.1-mini",
             messages=[{"role": "user", "content": "Say 'API test successful'"}],
             max_tokens=10
         )
@@ -86,7 +86,7 @@ async def main():
     # Test 1: API key format
     if not check_api_key_format():
         print("\n❌ API key format test failed")
-        print("💡 Run: python set_api_key.py to fix this")
+        print("💡 Re-copy your key into python-backend/.env (it should start with 'sk-')")
         return
     
     # Test 2: OpenAI connection

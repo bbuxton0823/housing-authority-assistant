@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from typing import Optional, List, Dict, Any
 from uuid import uuid4
+import json
 import time
 import logging
 import os
@@ -301,7 +302,6 @@ async def chat_endpoint(req: ChatRequest):
             tool_args: Any = raw_args
             if isinstance(raw_args, str):
                 try:
-                    import json
                     tool_args = json.loads(raw_args)
                 except Exception:
                     pass
