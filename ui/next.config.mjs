@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   devIndicators: false,
-  typedRoutes: false,
   eslint: {
     ignoreDuringBuilds: true,
   },
