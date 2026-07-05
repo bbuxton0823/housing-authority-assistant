@@ -1,6 +1,8 @@
 # Housing Authority Assistant
 
-A multi-agent housing authority customer-service platform built on the **OpenAI Agents SDK**, with a FastAPI backend and a Next.js dual-panel UI (agent orchestration view + customer chat). Supports HQS inspection scheduling, Section 8 landlord services, HPS appointments, and general housing questions in English, Spanish, and Mandarin — with optional voice (ElevenLabs TTS + Whisper STT) and Twilio phone integration.
+A multi-agent housing authority customer-service platform built on the **OpenAI Agents SDK**, with a FastAPI backend and a Next.js dual-panel UI (agent orchestration view + customer chat). Supports HQS inspection scheduling, Section 8 landlord services, HPS appointments, and general housing questions in English, Spanish, and Mandarin, with optional voice (ElevenLabs TTS + Whisper STT) and Twilio phone integration.
+
+> **Lineage:** the project structure started from OpenAI's open-source [customer-service agents demo](https://github.com/openai/openai-cs-agents-demo) scaffold. Everything housing-specific is original work: the five housing-authority specialist agents and their tools, the trilingual support, the voice pipeline (ElevenLabs + Whisper), the Twilio phone integration, and the referral/routing workflows.
 
 ## 🖥️ Interface Overview
 
